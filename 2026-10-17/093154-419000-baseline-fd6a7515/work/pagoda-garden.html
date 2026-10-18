@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>五重塔 — 桜の庭園 | Voxel Pagoda Garden</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b0e1a;
+    font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",Georgia,serif;}
+  #app{position:fixed;inset:0;}
+  #vignette{position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at 50% 42%,transparent 55%,rgba(8,10,20,.42) 100%);}
+  .card{position:fixed;color:#f4ead8;background:rgba(16,18,30,.62);
+    border:1px solid rgba(244,234,216,.18);border-radius:10px;backdrop-filter:blur(6px);}
+  #title{top:16px;left:16px;padding:12px 18px;max-width:340px;}
+  #title h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.14em;}
+  #title p{margin:6px 0 0;font-size:11.5px;line-height:1.7;opacity:.78;letter-spacing:.06em;}
+  #stats{top:16px;right:16px;padding:9px 14px;font-size:11px;line-height:1.8;
+    font-family:ui-monospace,Menlo,monospace;color:#cfe3d6;letter-spacing:.03em;}
+  #bar{bottom:16px;left:50%;transform:translateX(-50%);padding:8px 10px;display:flex;gap:8px;align-items:center;}
+  #bar button{cursor:pointer;border:1px solid rgba(244,234,216,.25);border-radius:7px;
+    background:rgba(244,234,216,.07);color:#f4ead8;font-size:12.5px;padding:7px 13px;
+    font-family:inherit;letter-spacing:.08em;transition:background .15s;}
+  #bar button:hover{background:rgba(244,234,216,.2);}
+  #bar button.on{background:#b5432f;border-color:#d96a52;}
+  #hint{bottom:20px;right:16px;padding:7px 12px;font-size:10.5px;opacity:.75;letter-spacing:.05em;}
+  #loader{position:fixed;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;
+    justify-content:center;background:#101322;color:#f4ead8;z-index:10;transition:opacity .8s;}
+  #loader .petal{width:14px;height:14px;border-radius:70% 0 70% 0;background:#f2a7c3;
+    animation:spin 1.1s linear infinite;}
+  #loader p{font-size:13px;letter-spacing:.3em;margin:0;opacity:.85;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+
+<div id="title" class="card">
+  <h1>五重塔 · 桜庭園</h1>
+  <p>Pagoda in a Spring Garden — 約 10 万ボクセルの手組み procedural 庭園。<br>
+     五重塔・大鳥居・太鼓橋・蓮池・枯山水・竹林・枝垂桜・茶室・祠・石灯籠。</p>
+</div>
+<div id="stats" class="card">voxels …</div>
+<div id="bar" class="card">
+  <button id="btnNight">🌙 夜景</button>
+  <button id="btnRot" class="on">⟳ 自動回転</button>
+  <button id="btnStorm">❀ 花吹雪</button>
+  <button id="btnShot">📷 保存</button>
+</div>
+<div id="hint" class="card">ドラッグ:回転 / ホイール:拡大 / 右ドラッグ:平行移動</div>
+<div id="loader"><div class="petal"></div><p>庭園を刻んでいます…</p></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================
+   0. 乱数・ノイズ・カラーユーティリティ
+   ============================================================ */
+let _s = 20261017 >>> 0;
+const rnd = () => { _s ^= _s << 13; _s ^= _s >>> 17; _s ^= _s << 5; _s >>>= 0; return _s / 4294967296; };
+const rr  = (a, b) => a + rnd() * (b - a);
+const ri  = (a, b) => Math.floor(rr(a, b + 1));
+const pick = arr => arr[Math.floor(rnd() * arr.length)];
+
+function hash2(ix, iz) { const n = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453; return n - Math.floor(n); }
+function vnoise(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z), fx = x - ix, fz = z - iz;
+  const sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+  const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+const C = h => parseInt(h, 16);
+function mix(c1, c2, t) {
+  const r1 = (c1 >> 16) & 255, g1 = (c1 >> 8) & 255, b1 = c1 & 255;
+  const r2 = (c2 >> 16) & 255, g2 = (c2 >> 8) & 255, b2 = c2 & 255;
+  return ((r1 + (r2 - r1) * t) << 16 | (g1 + (g2 - g1) * t) << 8 | (b1 + (b2 - b1) * t)) & 0xffffff;
+}
+
+/* ============================================================
+   1. ボクセル格納 (稀疏 Map)
+   ============================================================ */
+const S = 128;                                   // 敷地のひと辺
+const vox = new Map();                           // key -> packed color
+const K = (x, y, z) => (x + 256) | ((y + 256) << 9) | ((z + 256) << 18);
+function set(x, y, z, c) {
+  x |= 0; y |= 0; z |= 0;
+  if (x < 0 || z < 0 || y < 0 || x >= S || z >= S || y > 96) return;
+  vox.set(K(x, y, z), c);
+}
+const has = (x, y, z) => vox.has(K(x, y, z));
+function box(x0, x1, y0, y1, z0, z1, c) {
+  for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) set(x, y, z, c);
+}
+function ell(cx, cy, cz, rx, ry, rz, c, fill = true, jitter = 0) {
+  for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
+  for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
+  for (let z = Math.floor(cz - rz); z <= Math.ceil(cz + rz); z++) {
+    const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 + ((z - cz) / rz) ** 2;
+    if (d <= 1 && (fill || d > 0.45)) {
+      let col = c;
+      if (jitter) col = mix(c, c > 0x808080 ? 0x000000 : 0xffffff, (hash2(x * 3 + y, z * 7) - 0.5) * jitter);
+      set(x, y, z, col);
+    }
+  }
+}
+
+/* ============================================================
+   2. パレット
+   ============================================================ */
+const P = {
+  grassA: C('6fae5c'), grassB: C('5f9e50'), grassC: C('7dbb66'),
+  dirt:   C('8a6a44'), stone: C('9a9a97'), stoneD: C('7c7d80'), stoneL: C('b4b3ac'),
+  sand:   C('e3d7b0'), sandD: C('d3c393'), sandL: C('efe4c2'),
+  pathA:  C('a8a49a'), pathB: C('8f8b82'),
+  mud:    C('4c5a3c'),
+  wood:   C('5d4028'), woodD: C('46301e'), woodL: C('7a5a3a'),
+  tile:   C('3a4a66'), tileE: C('4d6084'), tileR: C('64779c'), tileU: C('26304a'),
+  verm:   C('b5432f'), vermL: C('cf5a40'), vermD: C('8e3323'),
+  plaster:C('e9e2d0'), plasterS: C('d9d0ba'),
+  gold:   C('e8b53a'), jewel: C('ffd977'),
+  torii:  C('cf4a35'), toriiD: C('a93a2a'), black: C('2a2a2e'),
+  sak1: C('fbdce7'), sak2: C('f7c1d6'), sak3: C('ef9dbd'), sak4: C('e57fa6'), sakD: C('c96f92'),
+  pine1: C('3f7d4e'), pine2: C('2f6b3d'), pine3: C('518f5c'),
+  maple1: C('d95f2b'), maple2: C('e07a3e'), maple3: C('c0392b'),
+  bam1: C('7a9b3d'), bam2: C('5d8a3a'), bam3: C('93a94e'), bamN: C('4c6b2c'),
+  leaf: C('4e7d3a'), leafL: C('639a4a'),
+  azP: C('e77fb0'), azR: C('d94f5c'), azU: C('9b6bd1'), azW: C('e9e4d8'),
+  rock: C('8b8d8f'), rockD: C('6f7174'), moss: C('6f8f5a'),
+  waterLily: C('4f8f5a'), lotus: C('f2a7c3'), lotusC: C('f5d76e'),
+  lamp: C('b8b6ae'), lampD: C('98968e'),
+  white: C('f2efe6'), red: C('d94a3a'), yellow: C('eec94e'), purple: C('9b7bd1'), pink: C('f0a8c0'),
+};
+const SAK = [P.sak1, P.sak1, P.sak2, P.sak2, P.sak2, P.sak3, P.sak3, P.sak4, P.sakD];
+
+/* ============================================================
+   3. 地形 — 芝・広場・参道・池・枯山水
+   ============================================================ */
+const pondLobes = [[40, 92, 13.5, 9], [58, 105, 8.5, 6.2]];   // [cx,cz,rx,rz]
+function pondIn(x, z) {                       // >0 なら池の内側、値は正規化深度
+  let d = -1;
+  for (const [cx, cz, rx, rz] of pondLobes) {
+    const e = Math.hypot((x - cx) / rx, (z - cz) / rz);
+    const wob = 0.14 * (vnoise(x * 0.28 + 11, z * 0.28 + 5) - 0.5);
+    d = Math.max(d, 1 - (e + wob));
+  }
+  return d;
+}
+const inPlaza = (x, z) => Math.hypot(x - 64, z - 52) < 17.5;
+const inPath  = (x, z) => x >= 60 && x <= 68 && z >= 62 && z <= 127;
+const inZen   = (x, z) => x >= 88 && x <= 119 && z >= 68 && z <= 99;
+const inTorii = (x, z) => Math.abs(x - 64) < 9 && Math.abs(z - 118) < 4;
+
+const zenRocks = [[98, 79, 2.6], [109, 90, 2.0], [94, 92, 1.5], [113, 74, 1.3]];
+function waterY() { return 2; }
+
+function buildTerrain() {
+  for (let x = 0; x < S; x++) for (let z = 0; z < S; z++) {
+    const p = pondIn(x, z);
+    let h = 4;
+    // 外周にゆるやかな起伏
+    const edge = Math.max(0, Math.hypot(x - 64, z - 64) - 52) * 0.16;
+    h += Math.round(edge + vnoise(x * 0.05 + 3, z * 0.05 + 9) * 2.2 + vnoise(x * 0.14, z * 0.14) * 0.9);
+    if (inPlaza(x, z) || inPath(x, z) || inZen(x, z) || inTorii(x, z)) h = 4;
+    if (p > 0) h = p > 0.28 ? 1 : 2;                       // 池の底
+
+    let top;
+    if (p > 0)            top = p > 0.28 ? P.mud : mix(P.mud, P.stoneD, 0.5);
+    else if (inZen(x, z)) top = P.sand;
+    else if (inPlaza(x, z)) top = ((x >> 1) + (z >> 1)) % 2 ? P.pathA : P.pathB;
+    else if (inPath(x, z))  top = (x % 4 < 2) === (z % 4 < 2) ? P.pathA : P.grassB;
+    else {
+      const n = vnoise(x * 0.2 + 31, z * 0.2 + 17);
+      top = n > 0.62 ? P.grassC : n < 0.36 ? P.grassB : P.grassA;
+      if (vnoise(x * 0.07 + 77, z * 0.07 + 3) > 0.74) top = P.dirt;
+    }
+    for (let y = 0; y < h; y++) {
+      const c = y === h - 1 ? top : y > h - 4 ? mix(top, P.dirt, 0.45) : P.stoneD;
+      set(x, y, z, c);
+    }
+    // 池の縁の石
+    if (p <= 0 && p > -0.14 && h >= 3) {
+      const r = hash2(x * 13, z * 29);
+      set(x, h, z, r > 0.55 ? P.stone : r > 0.3 ? P.stoneD : P.stoneL);
+    }
+    // 枯山水:砂の畝 + 石の回りの同心円
+    if (inZen(x, z)) {
+      let ridge = (z % 3 === 0) ? 1 : 0;
+      for (const [rx, rz, rr2] of zenRocks) {
+        const d = Math.hypot(x - rx, z - rz);
+        if (d < rr2 + 6.5) ridge = (d * 0.55) % 1 < 0.4 ? 1 : 0;
+      }
+      set(x, h, z, hash2(x, z) > 0.5 ? P.sand : P.sandD);
+      if (ridge) set(x, h + 1, z, P.sandL);
+    }
+  }
+  // 枯山水の石
+  for (const [rx, rz, rr2] of zenRocks) rock(rx, 5, rz, rr2);
+}
+function groundH(x, z) { for (let y = 14; y >= 0; y--) if (has(x, y, z)) return y + 1; return 0; }
+
+/* ============================================================
+   4. 五重塔
+   ============================================================ */
+const glowPts = [];   // 夜に発光させる位置(石灯籠の火袋・塔の窓)
+function buildPagoda() {
+  const cx = 64, cz = 52;
+  // 基壇
+  box(cx - 11, cx + 11, 4, 6, cz - 11, cz + 11, P.stone);
+  box(cx - 10, cx + 10, 4, 6, cz - 10, cz + 10, P.stoneL);
+  for (let x = cx - 11; x <= cx + 11; x += 2) for (const z of [cz - 11, cz + 11]) set(x, 6, z, P.stoneD);
+  // 南の階段
+  for (let s = 0; s < 3; s++) box(cx - 4, cx + 4, 4 + (2 - s), 6, cz + 12 + s, cz + 12 + s, P.stone);
+  box(cx - 5, cx - 4, 4, 6, cz + 12, cz + 15, P.stoneD);
+  box(cx + 4, cx + 5, 4, 6, cz + 12, cz + 15, P.stoneD);
+
+  let y0 = 7;
+  for (let i = 0; i < 5; i++) {
+    const w = 7 - i, hw = w;
+    // 身 — 壁・柱・貫
+    for (let y = y0; y <= y0 + 4; y++) {
+      for (let dx = -hw; dx <= hw; dx++) for (let dz = -hw; dz <= hw; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== hw) continue;
+        let c = P.plaster;
+        if (hash2(dx * 7 + i, dz * 11) > 0.72) c = P.plasterS;
+        const corner = Math.abs(dx) === hw && Math.abs(dz) === hw;
+        const midLine = (dx === 0 || dz === 0 || (Math.abs(dx) === Math.abs(dz))) && !corner;
+        if (corner || (Math.abs(dx) === hw && Math.abs(dz) % 3 === 0) || (Math.abs(dz) === hw && Math.abs(dx) % 3 === 0))
+          c = P.verm;                                   // 隅柱・柱
+        if (y === y0 || y === y0 + 4) c = Math.max(Math.abs(dx), Math.abs(dz)) === hw ? (y === y0 ? P.wood : P.vermD) : c;
+        if (y === y0 + 2 && midLine && !corner) c = P.woodL;   // 長押
+        set(cx + dx, y, cz + dz, c);
+      }
+    }
+    // 1層目:扉 + 内陣 + 仏像
+    if (i === 0) {
+      for (let dx = -1; dx <= 1; dx++) for (let y = y0; y <= y0 + 3; y++) set(cx + dx, y, cz + hw, P.black);
+      box(cx - 1, cx + 1, y0, y0, cz + hw, cz + hw, C('1c1712'));
+      set(cx - 1, y0 + 1, cz + hw - 1, P.vermD); set(cx + 1, y0 + 1, cz + hw - 1, P.vermD);
+      // 金仏
+      box(cx - 1, cx + 1, y0, y0, cz - 2, cz - 1, P.gold);
+      set(cx, y0 + 1, cz - 2, P.gold); set(cx, y0 + 1, cz - 1, P.gold);
+      set(cx, y0 + 2, cz - 2, C('f3d27a')); set(cx, y0 + 2, cz - 1, C('f3d27a'));
+      set(cx, y0 + 3, cz - 1, P.jewel);
+      set(cx, y0 + 1, cz - 3, P.jewel); set(cx, y0 + 2, cz - 3, P.gold);   // 光背
+    }
+    // 2層目以上:回廊手摺 + 窓
+    if (i > 0) {
+      for (let dx = -hw - 1; dx <= hw + 1; dx++) for (let dz = -hw - 1; dz <= hw + 1; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) === hw + 1) {
+          set(cx + dx, y0, cz + dz, P.woodD);
+          if ((dx + dz + 200) % 2 === 0) { set(cx + dx, y0 + 1, cz + dz, P.verm); set(cx + dx, y0 + 2, cz + dz, P.vermL); }
+        }
+      }
+      const wy = y0 + 2;
+      for (const [dx, dz] of [[0, hw], [0, -hw], [hw, 0], [-hw, 0]]) {
+        vox.delete(K(cx + dx, wy, cz + dz));
+        glowPts.push([cx + dx, wy, cz + dz]);
+      }
+    }
+    // 斗拱(下見) — 軒裏の朱の刻み
+    const o = w + 3;
+    for (let dx = -o + 1; dx <= o - 1; dx++) for (let dz = -o + 1; dz <= o - 1; dz++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) === w + 1 && (dx + dz + 202) % 2 === 0)
+        set(cx + dx, y0 + 5, cz + dz, P.vermD);
+    }
+    // 屋根 — 3段の勾配 + 反り
+    const rings = [[o, y0 + 6], [o - 1, y0 + 7], [o - 2, y0 + 8]];
+    for (let r = 0; r < 3; r++) {
+      const [rad, ry] = rings[r];
+      for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++) {
+        const cheb = Math.max(Math.abs(dx), Math.abs(dz));
+        if (cheb > rad) continue;
+        let c = P.tile;
+        if (dx === 0 || dz === 0) c = P.tileR;                       // 棟
+        if (hash2(dx * 5 + r, dz * 9 + i) > 0.8) c = P.tileE;
+        if (cheb === rad && r === 0) c = P.tileE;                    // 軒先
+        set(cx + dx, ry, cz + dz, c);
+        if (r === 0 && Math.abs(dx) === rad && Math.abs(dz) === rad) {   // 隅の反り
+          set(cx + dx, ry + 1, cz + dz, P.tileR);
+          set(cx + dx, ry + 2, cz + dz, P.jewel);                     // 鬼板/金具
+        }
+        if (r === 0 && ((Math.abs(dx) === rad && Math.abs(dz) === rad - 1) || (Math.abs(dx) === rad - 1 && Math.abs(dz) === rad)))
+          set(cx + dx, ry + 1, cz + dz, P.tileE);
+      }
+    }
+    y0 += 9;
+  }
+  // 相輪
+  const sy = y0;
+  box(cx - 1, cx + 1, sy, sy, cz - 1, cz + 1, P.gold);
+  for (let y = sy + 1; y <= sy + 9; y++) set(cx, y, cz, P.gold);
+  for (let r = 0; r < 9; r++) {
+    const ry = sy + 1 + r, rad = 2 - (r > 6 ? 1 : 0);
+    for (let dx = -rad; dx <= rad; dx++) for (let dz = -rad; dz <= rad; dz++)
+      if (Math.max(Math.abs(dx), Math.abs(dz)) === rad) set(cx + dx, ry, cz + dz, P.gold);
+  }
+  set(cx, sy + 11, cz, P.jewel); set(cx, sy + 12, cz, C('fff3c4'));
+  set(cx - 1, sy + 11, cz, P.jewel); set(cx + 1, sy + 11, cz, P.jewel);
+  set(cx, sy + 11, cz - 1, P.jewel); set(cx, sy + 11, cz + 1, P.jewel);
+}
+
+/* ============================================================
+   5. 鳥居
+   ============================================================ */
+function buildTorii() {
+  const cx = 64, z = 118, y = 4;
+  for (const side of [-1, 1]) {
+    for (let t = 0; t < 11; t++) {
+      const x = cx + side * (6 - Math.floor(t / 5));
+      set(x, y + t, z, t < 1 ? P.black : P.torii);
+      set(x, y + t, z + 1, t < 1 ? P.black : P.toriiD);
+    }
+    set(cx + side * 6, y + 11, z, P.black);
+  }
+  // 笠木・島木(反り)
+  for (let x = cx - 10; x <= cx + 10; x++) {
+    const up = Math.abs(x - cx) >= 9 ? 1 : Math.abs(x - cx) === 8 ? 0 : 0;
+    set(x, y + 12 + up, z, P.black); set(x, y + 12 + up, z + 1, P.black);
+    if (Math.abs(x) + 0 <= 10 && Math.abs(x - cx) < 9) { set(x, y + 13 + up, z, P.toriiD); }
+    set(x, y + 11 + up, z, P.torii); set(x, y + 11 + up, z + 1, P.toriiD);
+  }
+  set(cx - 10, y + 13, z, P.black); set(cx + 10, y + 13, z, P.black);
+  // 貫
+  box(cx - 7, cx + 7, y + 8, y + 9, z, z, P.torii);
+  // 額束
+  box(cx - 1, cx + 1, y + 10, y + 10, z, z, P.black);
+  set(cx, y + 10, z + 1, P.gold);
+}
+
+/* ============================================================
+   6. 石灯籠
+   ============================================================ */
+function stoneLantern(x, z) {
+  const y = groundH(x, z);
+  box(x - 1, x + 1, y, y, z - 1, z + 1, P.lampD);
+  set(x, y + 1, z, P.lamp); set(x, y + 2, z, P.lamp); set(x, y + 3, z, P.lampD);
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== 1) continue;
+    for (let ly = y + 4; ly <= y + 6; ly++) set(x + dx, ly, z + dz, ly === y + 5 ? P.lamp : P.lampD);
+  }
+  for (const [dx, dz] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) vox.delete(K(x + dx, y + 5, z + dz));
+  glowPts.push([x, y + 5, z]);
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) {
+    const r = Math.max(Math.abs(dx), Math.abs(dz));
+    if (r <= 2 && !(Math.abs(dx) === 2 && Math.abs(dz) === 2)) set(x + dx, y + 7, z + dz, P.lampD);
+  }
+  set(x, y + 8, z, P.lamp); set(x, y + 9, z, P.lampL ?? P.stoneL);
+}
+
+/* ============================================================
+   7. 太鼓橋
+   ============================================================ */
+function buildBridge() {
+  const cx = 64, z0 = 97, z1 = 113;
+  for (let z = z0; z <= z1; z++) {
+    const t = (z - z0) / (z1 - z0);
+    const y = Math.round(5 + 3.4 * Math.sin(t * Math.PI));
+    for (let x = cx - 4; x <= cx + 4; x++) {
+      set(x, y, z, x === cx - 4 || x === cx + 4 ? P.vermD : (z % 2 ? P.verm : P.vermL));
+      if (y > 4) set(x, y - 1, z, P.woodD);
+    }
+    for (const x of [cx - 4, cx + 4]) {
+      set(x, y + 1, z, P.gold);
+      if ((z - z0) % 3 === 0) { set(x, y + 2, z, P.white); set(x, y + 3, z, P.white); }
+    }
+  }
+}
+
+/* ============================================================
+   8. 樹木 — 桜・松・紅葉・竹
+   ============================================================ */
+const sakuraCenters = [];
+function cherryTree(x, z, scale = 1) {
+  const y = groundH(x, z);
+  const tips = [];
+  function branch(px, py, pz, dx, dy, dz, len, rad, depth) {
+    let cx = px, cy = py, cz = pz;
+    for (let t = 0; t < len; t++) {
+      const r = Math.max(0, rad - t * rad / len);
+      for (let ox = -1; ox <= 1; ox++) for (let oy = -1; oy <= 1; oy++) for (let oz = -1; oz <= 1; oz++) {
+        if (ox * ox + oy * oy + oz * oz <= r * r + 0.4) set(Math.round(cx + ox), Math.round(cy + oy), Math.round(cz + oz),
+          hash2(cx * 3, cz * 5 + cy) > 0.5 ? P.wood : P.woodD);
+      }
+      cx += dx; cy += dy; cz += dz;
+      dx += rr(-0.14, 0.14); dz += rr(-0.14, 0.14); dy = Math.max(dy * 0.985, depth === 0 ? 0.55 : 0.05);
+      const l = Math.hypot(dx, dy, dz); dx /= l; dy /= l; dz /= l;
+    }
+    if (depth >= 3) { tips.push([cx, cy, cz]); return; }
+    const n = depth === 0 ? 4 : ri(2, 3);
+    for (let k = 0; k < n; k++) {
+      const a = rnd() * Math.PI * 2, up = depth === 0 ? rr(0.35, 0.8) : rr(0.1, 0.65);
+      const l2 = Math.hypot(Math.cos(a), up, Math.sin(a));
+      branch(cx, cy, cz, Math.cos(a) / l2, up / l2, Math.sin(a) / l2,
+        (len * 0.62) | 0, Math.max(1, rad - 1), depth + 1);
+    }
+  }
+  branch(x, y, z, 0, 1, 0, (7 * scale) | 0, 1.6 * scale, 0);
+  for (const [tx, ty, tz] of tips) {
+    const nb = ri(2, 4);
+    for (let b = 0; b < nb; b++) {
+      const bx = tx + rr(-2.4, 2.4), by = ty + rr(-1.2, 2.2), bz = tz + rr(-2.4, 2.4);
+      const r = rr(2.2, 3.8) * scale;
+      for (let ox = -r; ox <= r; ox++) for (let oy = -r * 0.7; oy <= r * 0.7; oy++) for (let oz = -r; oz <= r; oz++) {
+        const d = (ox / r) ** 2 + (oy / (r * 0.7)) ** 2 + (oz / r) ** 2;
+        if (d <= 1 && rnd() < 0.86 - d * 0.25)
+          set(Math.round(bx + ox), Math.round(by + oy), Math.round(bz + oz), pick(SAK));
+      }
+    }
+  }
+  sakuraCenters.push([x, y + 12 * scale, z]);
+}
+function pineTree(x, z, h = 9) {
+  const y = groundH(x, z);
+  let px = x, pz = z;
+  for (let t = 0; t < h; t++) {
+    set(Math.round(px), y + t, Math.round(pz), t % 3 ? P.wood : P.woodD);
+    set(Math.round(px) + 1, y + t, Math.round(pz), P.woodD);
+    px += rr(-0.25, 0.25); pz += rr(-0.25, 0.25);
+    if (t > h * 0.35 && t % 2 === 1) {          // 枝
+      const a = rnd() * Math.PI * 2, L = ri(2, 4);
+      for (let s = 1; s <= L; s++)
+        set(Math.round(px + Math.cos(a) * s), y + t + (s >> 1), Math.round(pz + Math.sin(a) * s), P.woodD);
+      pad(px + Math.cos(a) * (L + 1), y + t + (L >> 1) + 1, pz + Math.sin(a) * (L + 1), rr(2.4, 3.6));
+    }
+  }
+  pad(px, y + h, pz, rr(2.8, 4));
+  function pad(cx2, cy2, cz2, r) {
+    for (let ox = -r; ox <= r; ox++) for (let oz = -r; oz <= r; oz++) {
+      const d = Math.hypot(ox, oz);
+      if (d <= r && rnd() < 0.92) {
+        const c = pick([P.pine1, P.pine2, P.pine2, P.pine3]);
+        set(Math.round(cx2 + ox), Math.round(cy2), Math.round(cz2 + oz), c);
+        if (d < r * 0.6 && rnd() < 0.5) set(Math.round(cx2 + ox), Math.round(cy2) + 1, Math.round(cz2 + oz), c);
+      }
+    }
+  }
+}
+function mapleTree(x, z, r = 3.4) {
+  const y = groundH(x, z);
+  for (let t = 0; t < 5; t++) { set(x, y + t, z, P.wood); set(x + (t > 2 ? 1 : 0), y + t, z, P.woodD); }
+  for (let ox = -r; ox <= r; ox++) for (let oy = -r * 0.7; oy <= r * 0.8; oy++) for (let oz = -r; oz <= r; oz++) {
+    const d = (ox / r) ** 2 + (oy / (r * 0.7)) ** 2 + (oz / r) ** 2;
+    if (d <= 1 && rnd() < 0.8)
+      set(x + Math.round(ox), y + 6 + Math.round(oy), z + Math.round(oz), pick([P.maple1, P.maple2, P.maple3, P.maple1]));
+  }
+}
+function bambooGrove(x0, z0, x1, z1, n) {
+  for (let k = 0; k < n; k++) {
+    const x = ri(x0, x1), z = ri(z0, z1), h = ri(15, 26);
+    const y = groundH(x, z);
+    const base = pick([P.bam1, P.bam2, P.bam3]);
+    let px = x, pz = z;
+    for (let t = 0; t < h; t++) {
+      set(Math.round(px), y + t, Math.round(pz), t % 4 === 3 ? P.bamN : base);
+      px += rr(-0.06, 0.06); pz += rr(-0.06, 0.06);
+    }
+    for (let b = 0; b < 4; b++) {                // 葉団
+      const lx = px + rr(-2.6, 2.6), lz = pz + rr(-2.6, 2.6), ly = y + h - ri(0, 5);
+      for (let i = 0; i < 9; i++)
+        set(Math.round(lx + rr(-1.4, 1.4)), Math.round(ly + rr(-0.8, 1.2)), Math.round(lz + rr(-1.4, 1.4)),
+          pick([P.leaf, P.leafL, P.bam2]));
+    }
+  }
+}
+function bush(x, z, r, c) {
+  const y = groundH(x, z);
+  for (let ox = -r; ox <= r; ox++) for (let oy = 0; oy <= r; oy++) for (let oz = -r; oz <= r; oz++) {
+    const d = (ox / r) ** 2 + (oy / (r * 0.85)) ** 2 + (oz / r) ** 2;
+    if (d <= 1 && rnd() < 0.9) set(x + Math.round(ox), y + oy, z + Math.round(oz),
+      rnd() < 0.75 ? c : mix(c, 0xffffff, 0.25));
+  }
+}
+function rock(x, y, z, r) {
+  for (let ox = -r - 1; ox <= r + 1; ox++) for (let oy = -r; oy <= r; oy++) for (let oz = -r - 1; oz <= r + 1; oz++) {
+    const d = Math.hypot(ox / (r + 0.4), oy / r, oz / (r + 0.4));
+    if (d <= 1 && hash2(x + ox * 31, z + oz * 17 + oy * 7) > 0.22) {
+      const top = oy >= r * 0.4 && hash2(ox + x, oz + z) > 0.55;
+      set(Math.round(x + ox), Math.round(y + oy), Math.round(z + oz), top ? P.moss : hash2(ox * 3, oz * 5) > 0.5 ? P.rock : P.rockD);
+    }
+  }
+}
+
+/* ============================================================
+   9. 小道具 — 蹲踞・花・苔玉・蓮・富士石群・柴垣
+   ============================================================ */
+function tsukubai(x, z) {
+  const y = groundH(x, z);
+  box(x - 1, x + 1, y, y, z - 1, z + 1, P.stoneD);
+  box(x - 1, x + 1, y + 1, y + 2, z - 1, z + 1, P.stone);
+  set(x, y + 3, z, C('2e6b74'));
+  set(x + 2, y + 3, z, P.bam2); set(x + 2, y + 4, z, P.bam2); set(x + 1, y + 4, z, P.bamN);
+}
+function flower(x, z) {
+  const y = groundH(x, z);
+  set(x, y, z, P.leaf);
+  set(x, y + 1, z, pick([P.red, P.yellow, P.purple, P.pink, P.white, P.lotus]));
+}
+function mossBall(x, z) {
+  const y = groundH(x, z);
+  ell(x, y + 1.2, z, 1.2, 1.2, 1.2, P.grassB, true, 0.12);
+}
+function lotus(x, z) {
+  const wy = waterY() + 0.15;
+  for (let ox = -1; ox <= 1; ox++) for (let oz = -1; oz <= 1; oz++)
+    if (!(ox === 1 && oz === -1)) set(x + ox, Math.round(wy), z + oz, P.waterLily);
+  set(x, Math.round(wy) + 1, z, P.lotus);
+  set(x - 1, Math.round(wy) + 1, z, P.lotus); set(x + 1, Math.round(wy) + 1, z, P.lotus);
+  set(x, Math.round(wy) + 1, z - 1, P.lotus); set(x, Math.round(wy) + 1, z + 1, P.lotus);
+  set(x, Math.round(wy) + 2, z, P.lotusC);
+}
+function fence(x0, z0, x1, z1, gapFn) {
+  const horiz = x0 !== x1;
+  const n = horiz ? x1 - x0 : z1 - z0;
+  for (let t = 0; t <= n; t += 4) {
+    const x = horiz ? x0 + t : x0, z = horiz ? z0 : z0 + t;
+    if (gapFn && gapFn(x, z)) continue;
+    const y = groundH(x, z);
+    set(x, y, z, P.woodD); set(x, y + 1, z, P.wood); set(x, y + 2, z, P.woodL); set(x, y + 3, z, P.woodD);
+    const nx = horiz ? x + 2 : x, nz = horiz ? z : z + 2;
+    if (gapFn && gapFn(nx, nz)) continue;
+    for (let s = 1; s < 4; s++) {
+      const mx = horiz ? x + s : x, mz = horiz ? z : z + s;
+      set(mx, y + 2, mz, P.wood); set(mx, y + 3, mz, P.woodL);
+    }
+  }
+}
+
+/* ============================================================
+   10. シーン構成(ボクセル配置)
+   ============================================================ */
+buildTerrain();
+buildPagoda();
+buildTorii();
+buildBridge();
+
+// 石灯籠
+for (const [x, z] of [[57, 112], [71, 112], [57, 96], [71, 96], [50, 80], [78, 80],
+                      [86, 66], [44, 66], [104, 72], [92, 97], [30, 84], [52, 116]])
+  stoneLantern(x, z);
+
+// 桜
+cherryTree(26, 62, 1.25); cherryTree(97, 114, 1.15); cherryTree(17, 104, 0.95);
+cherryTree(106, 34, 1.05); cherryTree(47, 34, 0.8); cherryTree(86, 58, 0.72);
+
+// 松・紅葉
+pineTree(40, 92, 8);                       // 池中の島
+(function island() {                       // 小島
+  const cx = 40, cz = 92;
+  for (let x = cx - 4; x <= cx + 4; x++) for (let z = cz - 3; z <= cz + 3; z++) {
+    const d = Math.hypot((x - cx) / 4.4, (z - cz) / 3.6);
+    if (d <= 1) { for (let y = 0; y <= 2; y++) set(x, y, z, y === 2 ? P.grassB : P.dirt); if (d > 0.72) set(x, 3, z, P.stone); }
+  }
+  rock(cx + 3, 3, cz + 2, 1.2);
+})();
+pineTree(88, 22, 10); pineTree(12, 76, 7); pineTree(116, 104, 8); pineTree(74, 30, 6);
+mapleTree(78, 44); mapleTree(50, 104); mapleTree(112, 60);
+
+// 竹林
+bambooGrove(8, 8, 30, 26, 46);
+bambooGrove(112, 12, 124, 24, 22);
+
+// 皐月・花・苔
+for (let k = 0; k < 16; k++) {
+  const a = rnd() * Math.PI * 2, d = rr(19, 26);
+  const x = Math.round(64 + Math.cos(a) * d), z = Math.round(52 + Math.sin(a) * d);
+  if (x > 4 && x < 123 && z > 4 && z < 123 && pondIn(x, z) <= 0 && !inPath(x, z))
+    bush(x, z, ri(1, 2), pick([P.azP, P.azR, P.azU, P.azW, P.grassA]));
+}
+for (let k = 0; k < 150; k++) {
+  const x = ri(6, 121), z = ri(6, 121);
+  if (pondIn(x, z) <= 0 && !inZen(x, z) && !inPlaza(x, z) && !inPath(x, z) && !has(x, groundH(x, z), z)) flower(x, z);
+}
+for (let k = 0; k < 60; k++) {
+  const x = ri(6, 121), z = ri(6, 121);
+  if (pondIn(x, z) <= 0 && !inZen(x, z) && !inPlaza(x, z) && !inPath(x, z) && !has(x, groundH(x, z), z))
+    set(x, groundH(x, z), z, pick([P.grassB, P.leaf, P.grassC]));
+}
+for (const [x, z] of [[36, 78], [60, 84], [84, 96], [100, 52], [24, 44], [70, 120], [40, 118], [118, 84]]) rock(x, groundH(x, z) - 1, z, rr(1.4, 2.4));
+for (const [x, z] of [[34, 70], [52, 74], [96, 62], [22, 92], [88, 108]]) mossBall(x, z);
+for (const [x, z] of [[34, 96], [46, 88], [55, 99], [62, 108], [30, 88]]) lotus(x, z);
+
+tsukubai(52, 66); tsukubai(76, 66);
+// 柴垣
+fence(14, 126, 114, 126, (x) => x > 58 && x < 70);
+fence(126, 44, 126, 122);
+fence(2, 40, 2, 122);
+fence(2, 2, 126, 2);
+fence(2, 2, 2, 40);
+fence(126, 2, 126, 30);
+
+/* ---- 第二波の装飾:茶室・祠・枝垂桜・菖蒲・飛石・奥の樹木 ---- */
+function chashitsu(x, z) {                       // 茅葺き茶室
+  const y = groundH(x, z);
+  box(x - 3, x + 3, y, y, z - 3, z + 3, P.woodD);
+  for (let dx = -3; dx <= 3; dx++) for (let dz = -3; dz <= 3; dz++) {
+    if (Math.max(Math.abs(dx), Math.abs(dz)) !== 3) continue;
+    for (let t = 1; t <= 3; t++)
+      set(x + dx, y + t, z + dz, hash2(dx * 5 + t, dz * 7) > 0.5 ? C('cbb894') : C('b3a077'));
+  }
+  for (let dx = -1; dx <= 1; dx++) for (let t = 1; t <= 2; t++) vox.delete(K(x + dx, y + t, z + 3));
+  box(x - 1, x + 1, y + 1, y + 1, z + 1, z + 2, C('241a10'));
+  set(x, y + 2, z + 1, P.gold);
+  for (let t = 0; t < 5; t++) box(x - 4 + t, x + 4 - t, y + 4 + t, y + 4 + t, z - 4 + t, z + 4 - t,
+    hash2(t, x + z) > 0.5 ? C('a08a4f') : C('8c7843'));
+  box(x - 3, x + 3, y + 1, y + 1, z + 4, z + 4, P.woodL);
+  set(x + 1, y + 8, z - 1, P.stoneD); set(x + 1, y + 9, z - 1, P.stoneD);
+}
+function hokora(x, z) {                          // 祠と小さな鳥居
+  const y = groundH(x, z);
+  box(x - 2, x + 2, y, y, z - 1, z + 2, P.stone);
+  for (const [dx, dz] of [[-1, 0], [1, 0], [-1, 2], [1, 2]]) for (let t = 1; t <= 2; t++) set(x + dx, y + t, z + dz, P.verm);
+  box(x - 1, x + 1, y + 1, y + 2, z + 2, z + 2, C('3a2c1c'));
+  set(x, y + 1, z + 1, P.gold);
+  for (let dx = -2; dx <= 2; dx++) for (let dz = -1; dz <= 3; dz++) set(x + dx, y + 3, z + dz, P.vermD);
+  for (let dx = -1; dx <= 1; dx++) set(x + dx, y + 4, z + 1, P.gold);
+  set(x, y + 5, z + 1, P.jewel);
+  for (const dx of [-2, 2]) for (let t = 1; t <= 3; t++) set(x + dx, y + t, z + 4, P.torii);
+  box(x - 2, x + 2, y + 3, y + 3, z + 4, z + 4, P.torii);
+  box(x - 3, x + 3, y + 4, y + 4, z + 4, z + 4, P.black);
+}
+function weepingCherry(x, z) {                   // 枝垂桜
+  const y = groundH(x, z);
+  for (let t = 0; t < 6; t++) { set(x + (t > 3 ? 1 : 0), y + t, z, t % 2 ? P.wood : P.woodD); set(x, y + t, z + (t > 3 ? 1 : 0), P.wood); }
+  for (let b = 0; b < 7; b++) {
+    const a = b / 7 * 6.283 + 0.4, R = 5.5;
+    for (let s = 0; s <= R; s++) {
+      const bx = x + Math.cos(a) * s, bz = z + Math.sin(a) * s;
+      const by = y + 6 + Math.sin(s / R * 1.9) * 2.6 - (s > R * 0.55 ? (s - R * 0.55) * 1.1 : 0);
+      set(Math.round(bx), Math.round(by), Math.round(bz), P.wood);
+      for (let h = 1; h <= ri(3, 6); h++) {
+        set(Math.round(bx), Math.round(by) - h, Math.round(bz), pick(SAK));
+        if (h > 2 && rnd() < 0.5) set(Math.round(bx) + ri(-1, 1), Math.round(by) - h, Math.round(bz) + ri(-1, 1), pick(SAK));
+      }
+    }
+  }
+  sakuraCenters.push([x, y + 10, z]);
+}
+function duck(x, z) {                            // 鴨のつがいのvoxel
+  const wy = Math.round(waterY() + 0.55);
+  ell(x, wy + 1, z, 1.2, 0.6, 1.6, P.white);
+  set(x, wy + 2, z + 1, P.white); set(x, wy + 2, z + 2, C('e8a33a'));
+  set(x - 1, wy + 1, z - 1, P.stoneD); set(x + 1, wy + 1, z - 1, P.stoneD);
+}
+chashitsu(24, 38);
+hokora(16, 36);
+weepingCherry(28, 78);
+duck(34, 90); duck(36, 88);
+for (let k = 0; k < 46; k++) {                   // 菖蒲
+  const a = rnd() * 6.283, r = rr(13.5, 15.5);
+  const x = Math.round(40 + Math.cos(a) * r), z = Math.round(92 + Math.sin(a) * r * 0.72);
+  if (x < 3 || z < 3 || x > 124 || z > 124) continue;
+  const p = pondIn(x, z);
+  if (p > -0.1 && p < 0.12) {
+    const y = groundH(x, z);
+    for (let t = 0; t < 2; t++) set(x, y + t, z, P.leaf);
+    set(x, y + 2, z, pick([P.azU, C('6a5acd'), P.white, P.purple]));
+  }
+}
+for (const [x, z] of [[45, 93], [47, 95], [49, 97], [51, 99], [53, 101]]) {   // 飛石
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+    if (dx * dx + dz * dz <= 1.2) set(x + dx, 2, z + dz, P.stoneL);
+}
+pineTree(60, 14, 9); pineTree(122, 42, 8); cherryTree(78, 12, 0.9); cherryTree(120, 62, 0.85);
+mapleTree(96, 14); mapleTree(8, 58);
+
+/* ============================================================
+   11. メッシュ化 — 隣接カリング + ベイク済み AO
+   ============================================================ */
+const FACES = [
+  { n: [ 1, 0, 0], v: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]], tint: 0.92 },
+  { n: [-1, 0, 0], v: [[0,0,0],[0,0,1],[0,1,1],[0,1,0]], tint: 0.92 },
+  { n: [ 0, 1, 0], v: [[0,1,0],[0,1,1],[1,1,1],[1,1,0]], tint: 1.0  },
+  { n: [ 0,-1, 0], v: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]], tint: 0.62 },
+  { n: [ 0, 0, 1], v: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]], tint: 0.86 },
+  { n: [ 0, 0,-1], v: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]], tint: 0.86 },
+];
+const AO_L = [0.56, 0.73, 0.88, 1.0];
+function buildMesh() {
+  const pos = [], nor = [], col = [], idx = [];
+  let vi = 0;
+  for (const [key, color] of vox) {
+    const x = (key & 511) - 256, y = ((key >> 9) & 511) - 256, z = ((key >> 18) & 511) - 256;
+    const jr = (hash2(x * 131 + y * 17, z * 271) - 0.5) * 0.07;
+    for (const f of FACES) {
+      const [nx, ny, nz] = f.n;
+      if (has(x + nx, y + ny, z + nz)) continue;
+      const na = nx ? 0 : (ny ? 1 : 2);                 // 法線軸
+      const ta = na === 0 ? 1 : 0;                      // 2つの接軸
+      const tb = na === 2 ? 1 : 2;
+      for (let c = 0; c < 4; c++) {
+        const v = f.v[c];
+        pos.push(x + v[0], y + v[1], z + v[2]);
+        nor.push(nx, ny, nz);
+        // AO — 接軸方向の隣接3マスの充填具合で頂点ごとに暗化
+        const o1 = [0, 0, 0]; o1[ta] = v[ta] ? 1 : -1;
+        const o2 = [0, 0, 0]; o2[tb] = v[tb] ? 1 : -1;
+        const s1 = has(x + nx + o1[0], y + ny + o1[1], z + nz + o1[2]) ? 1 : 0;
+        const s2 = has(x + nx + o2[0], y + ny + o2[1], z + nz + o2[2]) ? 1 : 0;
+        const cc = has(x + nx + o1[0] + o2[0], y + ny + o1[1] + o2[1], z + nz + o1[2] + o2[2]) ? 1 : 0;
+        const ao = s1 && s2 ? 0 : 3 - (s1 + s2 + cc);
+        const b = AO_L[ao] * f.tint * (1 + jr);
+        col.push((((color >> 16) & 255) / 255) * b, (((color >> 8) & 255) / 255) * b, ((color & 255) / 255) * b);
+      }
+      idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3); vi += 4;
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setIndex(idx);
+  return g;
+}
+
+/* ============================================================
+   12. Three.js セットアップ
+   ============================================================ */
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.32;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(46, innerWidth / innerHeight, 0.5, 1200);
+camera.position.set(158, 96, 196);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(64, 24, 60);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.autoRotate = true; controls.autoRotateSpeed = 0.55;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 40; controls.maxDistance = 420;
+
+const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x5e5138, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d8, 2.6);
+sun.position.set(120, 170, 60);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -110; sun.shadow.camera.right = 110;
+sun.shadow.camera.top = 110; sun.shadow.camera.bottom = -110;
+sun.shadow.camera.near = 20; sun.shadow.camera.far = 480;
+sun.shadow.bias = -0.0006;
+scene.add(sun); scene.add(sun.target); sun.target.position.set(64, 10, 64);
+
+const world = new THREE.Mesh(buildMesh(), new THREE.MeshLambertMaterial({ vertexColors: true }));
+world.castShadow = true; world.receiveShadow = true;
+scene.add(world);
+
+/* ---- 水面(池) ---- */
+(function buildWater() {
+  const pos = [], idx = []; let vi = 0;
+  const wy = waterY() + 0.55;
+  for (let x = 0; x < S; x++) for (let z = 0; z < S; z++) {
+    if (pondIn(x, z) <= 0) continue;
+    pos.push(x, wy, z, x + 1, wy, z, x + 1, wy, z + 1, x, wy, z + 1);
+    idx.push(vi, vi + 1, vi + 2, vi, vi + 2, vi + 3); vi += 4;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  const mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uTime: { value: 0 }, uNight: { value: 0 } },
+    vertexShader: `
+      uniform float uTime; varying vec3 vW; varying float vWv;
+      void main(){
+        vec3 p = position;
+        float w = sin(p.x*0.5+uTime*1.3)*0.055 + sin(p.z*0.66+uTime*1.05)*0.05 + sin((p.x+p.z)*0.22+uTime*0.55)*0.08;
+        p.y += w; vWv = w;
+        vec4 wp = modelMatrix*vec4(p,1.0); vW = wp.xyz;
+        gl_Position = projectionMatrix*viewMatrix*wp;
+      }`,
+    fragmentShader: `
+      uniform float uNight; varying vec3 vW; varying float vWv;
+      void main(){
+        vec3 deep = mix(vec3(0.09,0.30,0.36), vec3(0.02,0.07,0.14), uNight);
+        vec3 shal = mix(vec3(0.20,0.55,0.58), vec3(0.07,0.18,0.30), uNight);
+        vec3 c = mix(deep, shal, smoothstep(-0.1,0.12,vWv));
+        float spec = pow(max(0.0, sin(vW.x*0.5+uTime*1.3)*0.5+sin(vW.z*0.66+uTime*1.05)*0.5), 8.0);
+        c += vec3(1.0,0.95,0.8)*spec*0.22*(1.0-uNight*0.75);
+        c += vec3(0.75,0.85,1.0)*pow(max(0.0,sin(vW.x*0.3-uTime*0.4+2.0)*0.5+0.5),24.0)*uNight*0.25;
+        gl_FragColor = vec4(c, 0.8);
+      }`
+  });
+  const m = new THREE.Mesh(g, mat);
+  m.renderOrder = 2;
+  scene.add(m);
+  window.__water = mat;
+})();
+
+/* ---- 発光体(灯籠の火・塔の窓) ---- */
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffc873, transparent: true, opacity: 0 });
+const flames = new THREE.InstancedMesh(new THREE.BoxGeometry(0.95, 0.95, 0.95), flameMat, glowPts.length);
+{
+  const mtx = new THREE.Matrix4();
+  glowPts.forEach(([x, y, z], i) => { mtx.setPosition(x + 0.5, y + 0.5, z + 0.5); flames.setMatrixAt(i, mtx); });
+}
+scene.add(flames);
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xffa64d, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+const glow = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, 2.6, 2.6), glowMat, glowPts.length);
+{
+  const mtx2 = new THREE.Matrix4();
+  glowPts.forEach(([x, y, z], i) => { mtx2.setPosition(x + 0.5, y + 0.5, z + 0.5); glow.setMatrixAt(i, mtx2); });
+}
+scene.add(glow);
+const lampLights = [];
+for (const [x, z] of [[57, 112], [71, 112], [50, 80], [78, 80], [104, 72], [30, 84], [64, 52]]) {
+  const pl = new THREE.PointLight(0xffb066, 0, 34, 2);
+  pl.position.set(x + 0.5, groundH(x, z) + 5.5, z + 0.5);
+  if (x === 64 && z === 52) pl.position.y = 12;
+  scene.add(pl); lampLights.push(pl);
+}
+
+/* ---- 桜吹雪 ---- */
+const PETALS = 620;
+const petalGeo = new THREE.PlaneGeometry(0.55, 0.4);
+const petalMat = new THREE.MeshBasicMaterial({ color: 0xf7c1d6, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+const petals = new THREE.InstancedMesh(petalGeo, petalMat, PETALS);
+petals.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+const pd = [];
+for (let i = 0; i < PETALS; i++) pd.push(spawnPetal(true));
+function spawnPetal(init) {
+  const [tx, ty, tz] = pick(sakuraCenters.length ? sakuraCenters : [[64, 40, 60]]);
+  return { x: tx + rr(-9, 9), y: init ? rr(8, ty + 14) : ty + rr(4, 16), z: tz + rr(-9, 9),
+           ph: rr(0, 6.28), sp: rr(0.7, 1.7), rot: rr(0, 6.28), rs: rr(-2, 2) };
+}
+scene.add(petals);
+
+/* ---- 鯉 ---- */
+const koi = [];
+{
+  const cols = [0xe8762c, 0xf2efe6, 0xd94a3a, 0x2b2b2b, 0xf5c542];
+  for (let i = 0; i < 5; i++) {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.34, 1.7),
+      new THREE.MeshLambertMaterial({ color: cols[i % cols.length] }));
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.22, 0.7),
+      new THREE.MeshLambertMaterial({ color: mix(cols[i % cols.length], 0xffffff, 0.35) }));
+    tail.position.z = 1.1;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.3, 0.5),
+      new THREE.MeshLambertMaterial({ color: mix(cols[i % cols.length], 0x000000, 0.18) }));
+    head.position.z = -1.0;
+    g.add(body, tail, head);
+    g.userData = { a: rr(0, 6.28), r: rr(3, 8.5), r2: rr(2, 5.5), sp: rr(0.12, 0.3), cx: 42 + i * 4, cz: 94 + (i % 2) * 8, ph: rr(0, 6.28) };
+    scene.add(g); koi.push(g);
+  }
+}
+
+/* ---- 星空・月・蛍 ---- */
+const starGeo = new THREE.BufferGeometry();
+{
+  const sp = [];
+  for (let i = 0; i < 420; i++) {
+    const a = rr(0, 6.28), e = Math.acos(rr(0.05, 1));
+    sp.push(64 + 480 * Math.sin(e) * Math.cos(a), 90 + 430 * Math.cos(e), 64 + 480 * Math.sin(e) * Math.sin(a));
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+}
+const starMat = new THREE.PointsMaterial({ color: 0xdfe8ff, size: 1.6, transparent: true, opacity: 0, sizeAttenuation: false });
+scene.add(new THREE.Points(starGeo, starMat));
+const moon = new THREE.Mesh(new THREE.SphereGeometry(9, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xf4f1de, transparent: true, opacity: 0 }));
+moon.position.set(-140, 210, -60); scene.add(moon);
+
+const flyGeo = new THREE.BufferGeometry();
+const flyBase = [];
+for (let i = 0; i < 90; i++) flyBase.push(rr(10, 118), rr(5, 12), rr(30, 122));
+flyGeo.setAttribute('position', new THREE.Float32BufferAttribute(flyBase.slice(), 3));
+const flyMat = new THREE.PointsMaterial({ color: 0xd9ff7a, size: 1.5, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+const fireflies = new THREE.Points(flyGeo, flyMat);
+scene.add(fireflies);
+
+/* ============================================================
+   13. 昼 ⇄ 夜
+   ============================================================ */
+const DAY = { bg: C('bcdcf2'), fog: C('cfe4f2'), hemiSky: C('cfe2ff'), hemiG: C('6f6144'), sunC: C('fff4dd'), sunI: 3.1, hemiI: 1.05 };
+const NGT = { bg: C('131a3a'), fog: C('18214a'), hemiSky: C('2c3d6e'), hemiG: C('1a1c28'), sunC: C('9fb6ff'), sunI: 0.5, hemiI: 0.42 };
+let night = 0, nightTarget = 0;
+const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+function lerpCol(target, a, b) { target.copy(_c1.setHex(a)).lerp(_c2.setHex(b), night); }
+scene.fog = new THREE.Fog(0xcfe4f2, 210, 520);
+scene.background = new THREE.Color(DAY.bg);
+
+function updateDayNight(dt) {
+  night += (nightTarget - night) * Math.min(1, dt * 1.6);
+  lerpCol(scene.background, DAY.bg, NGT.bg);
+  lerpCol(scene.fog.color, DAY.fog, NGT.fog);
+  lerpCol(hemi.color, DAY.hemiSky, NGT.hemiSky);
+  lerpCol(hemi.groundColor, DAY.hemiG, NGT.hemiG);
+  hemi.intensity = DAY.hemiI + (NGT.hemiI - DAY.hemiI) * night;
+  lerpCol(sun.color, DAY.sunC, NGT.sunC);
+  sun.intensity = DAY.sunI + (NGT.sunI - DAY.sunI) * night;
+  flameMat.opacity = night * (0.9 + 0.1 * Math.sin(perf * 4.3));
+  glowMat.opacity = night * (0.2 + 0.05 * Math.sin(perf * 3.1));
+  for (const pl of lampLights) pl.intensity = night * 70;
+  starMat.opacity = Math.max(0, night - 0.35) * 1.2;
+  moon.material.opacity = Math.max(0, night - 0.3);
+  flyMat.opacity = Math.max(0, night - 0.4) * (0.7 + 0.3 * Math.sin(perf * 2.2));
+  window.__water.uniforms.uNight.value = night;
+  petalMat.color.setHex(night > 0.5 ? 0xc9a0b8 : 0xf7c1d6);
+}
+
+/* ============================================================
+   14. ループ
+   ============================================================ */
+let perf = 0, storm = 0, frames = 0, fpsT = 0, fps = 0;
+const mtx = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), vs = new THREE.Vector3(1, 1, 1), pv = new THREE.Vector3();
+const clock = new THREE.Clock();
+function loop() {
+  requestAnimationFrame(loop);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  perf += dt;
+  controls.update();
+  updateDayNight(dt);
+  window.__water.uniforms.uTime.value = perf;
+
+  // 花びら
+  const fall = 1 + storm * 2.2;
+  for (let i = 0; i < PETALS; i++) {
+    const p = pd[i];
+    p.y -= dt * p.sp * 2.4 * fall;
+    p.x += Math.sin(perf * 1.3 + p.ph) * dt * 1.6;
+    p.z += Math.cos(perf * 0.9 + p.ph) * dt * 1.2;
+    p.rot += dt * p.rs * (1 + storm);
+    if (p.y < 3.5) pd[i] = spawnPetal(false), p.y = -100;
+    e.set(p.rot, p.rot * 0.7, p.ph);
+    q.setFromEuler(e);
+    mtx.compose(pv.set(p.x, p.y, p.z), q, vs);
+    petals.setMatrixAt(i, mtx);
+  }
+  petals.instanceMatrix.needsUpdate = true;
+
+  // 鯉
+  for (const k of koi) {
+    const u = k.userData;
+    u.a += dt * u.sp;
+    k.position.set(u.cx + Math.cos(u.a) * u.r, waterY() + 0.35 + Math.sin(perf * 2 + u.ph) * 0.06, u.cz + Math.sin(u.a) * u.r2);
+    k.rotation.y = -u.a + Math.PI / 2;
+    k.children[1].rotation.y = Math.sin(perf * 6 + u.ph) * 0.5;
+  }
+  // 蛍の揺らぎ
+  {
+    const pa = flyGeo.attributes.position.array;
+    for (let i = 0; i < 90; i++) {
+      pa[i * 3]     = flyBase[i * 3]     + Math.sin(perf * 0.7 + i) * 2.2;
+      pa[i * 3 + 1] = flyBase[i * 3 + 1] + Math.sin(perf * 1.3 + i * 2) * 1.1;
+      pa[i * 3 + 2] = flyBase[i * 3 + 2] + Math.cos(perf * 0.5 + i) * 2.2;
+    }
+    flyGeo.attributes.position.needsUpdate = true;
+  }
+
+  renderer.render(scene, camera);
+  frames++;
+  if (perf - fpsT > 0.5) { fps = Math.round(frames / (perf - fpsT)); frames = 0; fpsT = perf; hud(); }
+}
+function hud() {
+  document.getElementById('stats').innerHTML =
+    `voxels &nbsp;${vox.size.toLocaleString()}<br>tris &nbsp;&nbsp;${(world.geometry.index.count / 3).toLocaleString()}<br>fps &nbsp;&nbsp;&nbsp;${fps}`;
+}
+
+/* ============================================================
+   15. UI
+   ============================================================ */
+const btnNight = document.getElementById('btnNight');
+btnNight.onclick = () => { nightTarget = nightTarget ? 0 : 1; btnNight.classList.toggle('on', !!nightTarget); btnNight.textContent = nightTarget ? '☀ 昼景' : '🌙 夜景'; };
+const btnRot = document.getElementById('btnRot');
+btnRot.onclick = () => { controls.autoRotate = !controls.autoRotate; btnRot.classList.toggle('on', controls.autoRotate); };
+const btnStorm = document.getElementById('btnStorm');
+btnStorm.onclick = () => { storm = storm ? 0 : 1; btnStorm.classList.toggle('on', !!storm); };
+document.getElementById('btnShot').onclick = () => {
+  renderer.render(scene, camera);
+  const a = document.createElement('a');
+  a.download = 'pagoda-garden.png'; a.href = renderer.domElement.toDataURL('image/png'); a.click();
+};
+addEventListener('keydown', ev => {
+  if (ev.key === 'n') btnNight.click();
+  if (ev.key === 'r') btnRot.click();
+  if (ev.key === 'h') btnStorm.click();
+});
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+hud();
+loop();
+requestAnimationFrame(() => {
+  const l = document.getElementById('loader');
+  l.style.opacity = 0; setTimeout(() => l.remove(), 850);
+});
+</script>
+</body>
+</html>
