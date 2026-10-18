@@ -1,6 +1,6 @@
 # llm-bench-reports
 
-[llm-bench](https://github.com/kzmake/llm-bench) の実行レポートを GitHub Pages で公開するためのリポジトリです。
+llm-bench の実行レポートを GitHub Pages で公開するためのリポジトリです。
 
 ## 構成
 
