@@ -132,6 +132,19 @@ for (const date of readdirSync(ROOT).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)
   }
 }
 if (!runs.length) throw new Error("レポートが見つからない");
+const noModel = runs.filter((r) => !r.model);
+if (noModel.length) throw new Error(`モデル名が読めないレポート: ${noModel.map((r) => r.href).join(", ")}`);
+
+// ---------- モデル ----------
+
+// 色は順位ではなくモデルに付く。最初に実行した順にスロットを割り当てるので、
+// あとから別のモデルが増えても既存のモデルの色は変わらない。3 つを超えた分は無彩色にする。
+const MODEL_SLOTS = 3;
+const modelOrder = [...new Set([...runs].reverse().map((r) => r.model))];
+const slot = (m: string) => (modelOrder.indexOf(m) < MODEL_SLOTS ? `m${modelOrder.indexOf(m) + 1}` : "m0");
+const modelCount = (m: string) => runs.filter((r) => r.model === m).length;
+// <title> にはモデル名が入る。カードの見出しにはバッジが別にあるので外す。
+const shortTitle = (r: Run) => r.title.replace(r.model, "").replace(/\s+/g, " ").trim() || r.title;
 
 // ---------- 共通の時間軸 ----------
 
@@ -157,6 +170,8 @@ function rowHtml(r: Run) {
     .join("");
   const tip = {
     title: `${r.date} ${r.time} · ${r.label} ${r.hash}`,
+    model: r.model,
+    slot: slot(r.model),
     rows: [
       ["所要時間", dur(r)],
       ["API 呼び出し", kv(r, "API 呼び出し")],
@@ -173,8 +188,8 @@ function rowHtml(r: Run) {
       return `<a class="mk" href="${esc(r.href + r.anchor)}" style="left:${pct(s.t)}" data-shot="${esc(JSON.stringify(d))}" aria-label="スクリーンショット ${esc(s.cap)} を含むレポートを開く"></a>`;
     })
     .join("");
-  return `<div class="row" data-tip="${esc(JSON.stringify(tip))}">
-  <a class="rl" href="${esc(r.href)}">${esc(runName(r))}</a>
+  return `<div class="row ${slot(r.model)}" data-tip="${esc(JSON.stringify(tip))}">
+  <a class="rl" href="${esc(r.href)}"><i class="dot"></i>${esc(runName(r))}</a>
   <div class="plot">
     <a class="track" href="${esc(r.href)}" tabindex="-1" aria-hidden="true" style="width:${pct(r.T)}"><svg viewBox="0 0 1000 14" preserveAspectRatio="none">${rects}</svg></a>
     <span class="dur" style="left:calc(${pct(r.T)} + 8px)">${esc(dur(r))}</span>${marks}
@@ -183,6 +198,11 @@ function rowHtml(r: Run) {
 }
 
 const chartHtml = `<div class="chart card" role="group" aria-label="実行ごとの API 呼び出しタイムライン(全実行で共通の時間軸)">
+<div class="legend" aria-label="モデル">
+${modelOrder
+  .map((m) => `  <span class="${slot(m)}"><i class="sw-m"></i>${esc(m)}<small>${modelCount(m)} 実行</small></span>`)
+  .join("\n")}
+</div>
 <div class="legend">
   <span><i class="sw-call"></i>API 呼び出し中</span>
   <span><i class="sw-span"></i>それ以外(ツール実行など)</span>
@@ -196,11 +216,11 @@ const chartHtml = `<div class="chart card" role="group" aria-label="実行ごと
 ${runs.map(rowHtml).join("\n")}
 </div>
 <details class="tbl"><summary>表で見る</summary><div class="scroll"><table>
-<thead><tr><th>実行</th><th class="r">所要時間</th><th class="r">呼び出し</th><th class="r">出力トークン</th><th class="r">最大コンテキスト</th><th class="r">キャッシュ命中</th><th class="r">推論の割合</th><th class="r">スクショ</th></tr></thead>
+<thead><tr><th>実行</th><th>モデル</th><th class="r">所要時間</th><th class="r">呼び出し</th><th class="r">出力トークン</th><th class="r">最大コンテキスト</th><th class="r">キャッシュ命中</th><th class="r">推論の割合</th><th class="r">スクショ</th></tr></thead>
 <tbody>${runs
   .map(
     (r) =>
-      `<tr><td><a href="${esc(r.href)}">${esc(runName(r))}</a> <span class="mono dim">${esc(r.hash)}</span></td><td class="r num">${esc(dur(r))}</td><td class="r num">${esc(kv(r, "API 呼び出し"))}</td><td class="r num">${esc(kv(r, "出力トークン"))}</td><td class="r num">${esc(kv(r, "最大コンテキスト"))}</td><td class="r num">${esc(kv(r, "キャッシュ命中"))}</td><td class="r num">${esc(kv(r, "推論が占める時間"))}</td><td class="r num">${r.shots.length}</td></tr>`,
+      `<tr><td><a href="${esc(r.href)}">${esc(runName(r))}</a> <span class="mono dim">${esc(r.hash)}</span></td><td class="mono"><span class="lbl ${slot(r.model)}"><i class="dot"></i>${esc(r.model)}</span></td><td class="r num">${esc(dur(r))}</td><td class="r num">${esc(kv(r, "API 呼び出し"))}</td><td class="r num">${esc(kv(r, "出力トークン"))}</td><td class="r num">${esc(kv(r, "最大コンテキスト"))}</td><td class="r num">${esc(kv(r, "キャッシュ命中"))}</td><td class="r num">${esc(kv(r, "推論が占める時間"))}</td><td class="r num">${r.shots.length}</td></tr>`,
   )
   .join("")}</tbody></table></div></details>
 </div>`;
@@ -228,9 +248,11 @@ function sample<T>(xs: T[], max: number): T[] {
 
 function cardHtml(r: Run) {
   const last = r.shots[r.shots.length - 1];
+  const name = shortTitle(r);
+  const chip = `<span class="mchip ${slot(r.model)}"><i class="dot"></i><span>${esc(r.model)}</span></span>`;
   const cover = last
-    ? `<a class="cover" href="${esc(r.href)}" aria-label="${esc(r.title)} のレポートを開く"><img src="${esc(last.src)}" alt="${esc(r.title)} のスクリーンショット" loading="lazy" decoding="async"><span class="badge">${esc(last.cap)}</span></a>`
-    : `<a class="cover noshot" href="${esc(r.href)}" aria-label="${esc(r.title)} のレポートを開く"><span>スクリーンショットなし</span></a>`;
+    ? `<a class="cover" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(r.model)})のレポートを開く"><img src="${esc(last.src)}" alt="${esc(name)} のスクリーンショット" loading="lazy" decoding="async"><span class="badge">${esc(last.cap)}</span>${chip}</a>`
+    : `<a class="cover noshot" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(r.model)})のレポートを開く"><span>スクリーンショットなし</span>${chip}</a>`;
   const thumbs =
     r.shots.length > 1
       ? `<div class="strip" role="group" aria-label="スクリーンショットを時系列で切り替え">${sample(r.shots, 6)
@@ -246,7 +268,7 @@ function cardHtml(r: Run) {
 ${cover}${thumbs}
 <div class="body">
   <div class="eyebrow">${esc(r.time)} · ${esc(r.label)} · ${esc(r.hash)}</div>
-  <h4><a href="${esc(r.href)}">${esc(r.title)}</a></h4>
+  <h4><a href="${esc(r.href)}">${esc(name)}</a></h4>
   <dl class="stats">${stat("所要時間")}${stat("API 呼び出し", "呼び出し")}${stat("出力トークン", "出力 tok")}${stat("最大コンテキスト", "最大 ctx")}${stat("キャッシュ命中", "キャッシュ")}</dl>
   <p class="lede">${esc(r.lede)}</p>
   <div class="links"><a href="${esc(r.href)}">レポート →</a>${r.work ? `<a href="${esc(r.work)}">成果物 ↗</a>` : ""}${status}</div>
@@ -270,20 +292,23 @@ const CSS = `
   --mono:ui-monospace,"SF Mono",Menlo,monospace;
   --bg:#f6f6f3;--surface:#fcfcfb;--ink:#14130f;--ink-2:#4a4944;--ink-3:#6b6a64;
   --line:rgba(20,19,15,.12);--grid:#e1e0d9;--axis:#c3c2b7;--wash:rgba(20,19,15,.045);
-  --s1:#2a78d6;--good:#0ca30c;--crit:#d03b3b;--viewer:#101322;--lw:112px;--rw:52px;color-scheme:light;
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--good:#0ca30c;--crit:#d03b3b;--viewer:#101322;--lw:112px;--rw:52px;color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#0d0d0c;--surface:#1a1a19;--ink:#f4f3ee;--ink-2:#c3c2b7;--ink-3:#a3a299;
     --line:rgba(255,255,255,.12);--grid:#2c2c2a;--axis:#383835;--wash:rgba(255,255,255,.05);
-    --s1:#3987e5;color-scheme:dark;
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0d0d0c;--surface:#1a1a19;--ink:#f4f3ee;--ink-2:#c3c2b7;--ink-3:#a3a299;
   --line:rgba(255,255,255,.12);--grid:#2c2c2a;--axis:#383835;--wash:rgba(255,255,255,.05);
-  --s1:#3987e5;color-scheme:dark;
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;color-scheme:dark;
 }
+/* モデルの色(順序はモデルの初出順。build-index.ts の slot を参照) */
+.m1{--mc:var(--s1)}.m2{--mc:var(--s2)}.m3{--mc:var(--s3)}.m0{--mc:var(--ink-3)}
+.dot{display:block;flex:none;width:8px;height:8px;border-radius:50%;background:var(--mc)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.75 var(--font);padding-inline:16px;-webkit-text-size-adjust:100%}
 main{max-width:1040px;margin-inline:auto;padding-block:40px 72px}
@@ -309,10 +334,13 @@ section>h2{padding-top:26px;border-top:1px solid var(--line)}
 /* 比較タイムライン */
 .chart{margin-top:18px;padding:16px 18px 12px}
 .legend{display:flex;flex-wrap:wrap;gap:4px 20px;font-size:12px;color:var(--ink-2)}
+.legend+.legend{margin-top:4px}
 .legend span{display:inline-flex;align-items:center;gap:7px}
+.legend small{font:400 11.5px/1 var(--mono);color:var(--ink-3);margin-left:1px}
 .legend i{display:block;flex:none}
-.sw-call{width:14px;height:8px;border-radius:2px;background:var(--s1)}
-.sw-span{width:14px;height:8px;border-radius:2px;background:color-mix(in srgb,var(--s1) 24%,transparent)}
+.sw-m{width:14px;height:8px;border-radius:2px;background:var(--mc)}
+.sw-call{width:14px;height:8px;border-radius:2px;background:var(--ink-3)}
+.sw-span{width:14px;height:8px;border-radius:2px;background:color-mix(in srgb,var(--ink-3) 24%,transparent)}
 .sw-dot{width:9px;height:9px;border-radius:50%;background:var(--ink)}
 .axis,.row{display:grid;grid-template-columns:var(--lw) 1fr;align-items:center}
 .axis{margin-top:10px}
@@ -324,11 +352,11 @@ section>h2{padding-top:26px;border-top:1px solid var(--line)}
 .grid{position:absolute;top:0;bottom:0;left:var(--lw);right:var(--rw);pointer-events:none}
 .grid i{position:absolute;top:0;bottom:0;width:1px;background:var(--grid)}
 .row{position:relative;height:36px}
-.rl{position:relative;font:500 12px/1.2 var(--mono);color:var(--ink-2);text-decoration:none;white-space:nowrap}
+.rl{position:relative;display:flex;align-items:center;gap:7px;font:500 12px/1.2 var(--mono);color:var(--ink-2);text-decoration:none;white-space:nowrap}
 .rl:hover{color:var(--ink);text-decoration:underline}
-.track{position:absolute;left:0;top:50%;height:14px;transform:translateY(-50%);display:block;overflow:hidden;border-radius:0 4px 4px 0;background:color-mix(in srgb,var(--s1) 24%,transparent)}
+.track{position:absolute;left:0;top:50%;height:14px;transform:translateY(-50%);display:block;overflow:hidden;border-radius:0 4px 4px 0;background:color-mix(in srgb,var(--mc) 24%,transparent)}
 .track svg{display:block;width:100%;height:100%}
-.track rect{fill:var(--s1)}
+.track rect{fill:var(--mc)}
 .row:hover .track,.row:focus-within .track{box-shadow:0 0 0 1px var(--ink-3)}
 .dur{position:absolute;top:50%;transform:translateY(-50%);font:500 12px/1 var(--mono);color:var(--ink);white-space:nowrap}
 .mk{position:absolute;top:50%;width:24px;height:24px;transform:translate(-50%,-50%);display:grid;place-items:center;border-radius:50%}
@@ -340,16 +368,19 @@ summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:4px 0}
 table{width:100%;min-width:640px;border-collapse:collapse;font-size:13px}
 th{font-weight:500;font-size:12px;color:var(--ink-3);text-align:left;padding:0 14px 8px 0;border-bottom:1px solid var(--axis);white-space:nowrap}
 td{padding:8px 14px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+.lbl{display:inline-flex;align-items:center;gap:7px}
 th.r,td.r{text-align:right}
 td:last-child,th:last-child{padding-right:0}
 .tip{position:fixed;z-index:10;left:0;top:0;pointer-events:none;max-width:260px;padding:9px 11px;border-radius:8px;background:var(--surface);border:1px solid var(--line);box-shadow:0 6px 20px rgba(20,19,15,.18);font-size:12px;line-height:1.55}
 .tip[hidden]{display:none}
 .tip .tt{font:500 11.5px/1.5 var(--mono);color:var(--ink-3);margin-bottom:4px}
+.tip .tm{display:flex;align-items:baseline;gap:7px;font:500 11.5px/1.5 var(--mono);color:var(--ink);overflow-wrap:anywhere;margin-bottom:5px}
+.tip .tm .dot{align-self:center}
 .tip .tr{display:flex;gap:8px;align-items:baseline}
 .tip .tr b{font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink);min-width:7ch}
 .tip .tr span{color:var(--ink-2)}
 .tip img{display:block;width:240px;max-width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:4px;background:var(--viewer);margin-bottom:6px}
-@media (max-width:640px){:root{--lw:84px;--rw:46px}.rl{font-size:11px}.chart{padding-inline:12px}}
+@media (max-width:640px){:root{--lw:100px;--rw:46px}.rl{font-size:11px}.chart{padding-inline:12px}}
 /* カード */
 .days{display:grid;gap:36px;margin-top:22px}
 .day{margin-top:0}
@@ -360,6 +391,7 @@ td:last-child,th:last-child{padding-right:0}
 .cover{position:relative;display:block;aspect-ratio:16/10;background:var(--viewer);overflow:hidden}
 .cover img{display:block;width:100%;height:100%;object-fit:cover}
 .badge{position:absolute;left:8px;bottom:8px;font:500 11px/1 var(--mono);padding:5px 8px;border-radius:999px;background:rgba(16,19,34,.78);color:#f4ead8;border:1px solid rgba(244,234,216,.25)}
+.mchip{position:absolute;left:8px;top:8px;z-index:1;display:inline-flex;align-items:center;gap:6px;max-width:calc(100% - 16px);font:500 11px/1.3 var(--mono);padding:5px 9px 5px 8px;border-radius:999px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.2);overflow-wrap:anywhere}
 .noshot{display:grid;place-items:center;background:var(--wash);color:var(--ink-3);font-size:12.5px;text-decoration:none}
 .strip{display:flex;gap:6px;padding:8px 10px 0}
 .th{flex:0 0 calc((100% - 30px)/6);min-width:0;aspect-ratio:16/10;padding:0;border:0;border-radius:4px;overflow:hidden;background:var(--viewer);cursor:pointer;opacity:.6;transition:opacity .12s}
@@ -399,6 +431,7 @@ const JS = `
     } else {
       const d = JSON.parse(t.dataset.tip);
       tip.append(el("div", "tt", d.title));
+      const tm = el("div", "tm " + d.slot); tm.append(el("i", "dot"), el("span", null, d.model)); tip.append(tm);
       for (const [k, v] of d.rows) { const r = el("div", "tr"); r.append(el("b", null, v), el("span", null, k)); tip.append(r); }
     }
   };
@@ -458,13 +491,13 @@ const page = `<!doctype html>
 
 <section id="timeline">
   <h2>実行のタイムライン</h2>
-  <p class="sec-lede">横軸は実行開始からの経過時間で、全実行で共通です。青い区間が API 呼び出し中、その間の空白がツール実行などの待ち時間で、薄い帯は実行全体の長さを表します。丸印にポインタを重ねるとその時点のスクリーンショットが表示され、行をクリックするとレポートを開きます。</p>
+  <p class="sec-lede">横軸は実行開始からの経過時間で、全実行で共通です。色は実行したモデルを表し、濃い区間が API 呼び出し中、その間の空白がツール実行などの待ち時間で、薄い帯は実行全体の長さを表します。丸印にポインタを重ねるとその時点のスクリーンショットが表示され、行をクリックするとレポートを開きます。</p>
   ${chartHtml}
 </section>
 
 <section id="reports">
   <h2>レポート</h2>
-  <p class="sec-lede">新しい順です。サムネイルにポインタを重ねる(タップする)と、実行中のスクリーンショットを時系列で見られます。</p>
+  <p class="sec-lede">新しい順です。カード左上のバッジが、実行したモデルです。サムネイルにポインタを重ねる(タップする)と、実行中のスクリーンショットを時系列で見られます。</p>
   <div class="days">
 ${daysHtml}
   </div>
@@ -482,6 +515,6 @@ writeFileSync(join(ROOT, "index.html"), page);
 console.log(`index.html を生成: ${runs.length} 件 / 軸 0〜${axisMax / 60} 分 (目盛り ${step / 60} 分)`);
 for (const r of runs) {
   console.log(
-    `  ${r.date} ${r.time} ${r.hash}  T=${clock(r.T).padStart(7)}  calls=${String(r.calls.length).padStart(3)}  shots=${String(r.shots.length).padStart(2)}  work=${r.work ? "✓" : "-"}  ${r.ok ? "ok" : "BAD"}`,
+    `  ${r.date} ${r.time} ${r.hash}  ${slot(r.model)}  ${r.model}  T=${clock(r.T).padStart(7)}  calls=${String(r.calls.length).padStart(3)}  shots=${String(r.shots.length).padStart(2)}  work=${r.work ? "✓" : "-"}  ${r.ok ? "ok" : "BAD"}`,
   );
 }
