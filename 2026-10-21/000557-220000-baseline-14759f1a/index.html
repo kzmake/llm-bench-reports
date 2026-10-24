@@ -1,0 +1,501 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Baseline Qwen3.8-Flash-Next UD-Q4_K_XL 14759f1a</title><style>
+:root{
+  --font:"Hiragino Sans","Noto Sans JP",system-ui,-apple-system,"Yu Gothic",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  --bg:#f6f6f3;--surface:#fcfcfb;--ink:#14130f;--ink-2:#4a4944;--ink-3:#6b6a64;
+  --line:rgba(20,19,15,.12);--grid:#e1e0d9;--axis:#c3c2b7;--wash:rgba(20,19,15,.045);
+  --s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#4a3aa7;
+  --on1:#ffffff;--on2:#0b0b0b;--good:#0ca30c;--warn:#fab219;--crit:#d03b3b;
+  --viewer:#101322;--shadow:0 6px 20px rgba(20,19,15,.14);color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d0d0c;--surface:#1a1a19;--ink:#f4f3ee;--ink-2:#c3c2b7;--ink-3:#a3a299;
+    --line:rgba(255,255,255,.12);--grid:#2c2c2a;--axis:#383835;--wash:rgba(255,255,255,.05);
+    --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;
+    --on1:#0b0b0b;--on2:#0b0b0b;--shadow:0 6px 20px rgba(0,0,0,.5);color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0d0c;--surface:#1a1a19;--ink:#f4f3ee;--ink-2:#c3c2b7;--ink-3:#a3a299;
+  --line:rgba(255,255,255,.12);--grid:#2c2c2a;--axis:#383835;--wash:rgba(255,255,255,.05);
+  --s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181;--s6:#008300;--s7:#9085e9;
+  --on1:#0b0b0b;--on2:#0b0b0b;--shadow:0 6px 20px rgba(0,0,0,.5);color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.75 var(--font);padding-inline:16px;-webkit-text-size-adjust:100%}
+main{max-width:1040px;margin-inline:auto;padding-block:36px 72px}
+a{color:var(--ink);text-underline-offset:3px;text-decoration-color:var(--axis)}
+a:hover{text-decoration-color:var(--ink)}
+.mono{font-family:var(--mono)}.num{font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance;margin:0}
+h1{font-size:clamp(24px,4.2vw,34px);line-height:1.3;font-weight:700;letter-spacing:.01em}
+h2{font-size:18px;line-height:1.4;font-weight:700}
+h3{font-size:14px;font-weight:700;line-height:1.5}
+p{margin:0}
+.eyebrow{font:500 11.5px/1.6 var(--mono);letter-spacing:.03em;color:var(--ink-3);overflow-wrap:anywhere}
+.status{display:inline-flex;align-items:center;gap:6px;font:500 12px/1 var(--mono);padding:5px 9px 5px 8px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink-2)}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--good);display:block}
+.status.bad i{background:var(--crit)}
+.chip{display:inline-flex;align-items:center;max-width:100%;font:500 12px/1.3 var(--mono);padding:5px 10px;border:1px solid var(--axis);border-radius:999px;background:var(--wash);color:var(--ink);overflow-wrap:anywhere}
+.lede{max-width:70ch;color:var(--ink-2);margin-top:14px;font-size:15px}
+.meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 28px;margin:22px 0 0;padding:0}
+.meta div{min-width:0}
+.meta dt{font-size:11.5px;color:var(--ink-3);letter-spacing:.04em}
+.meta dd{margin:0;font:500 12.5px/1.6 var(--mono);overflow-wrap:anywhere}
+section{margin-top:52px;padding-top:26px;border-top:1px solid var(--line)}
+.sec-lede{color:var(--ink-2);max-width:72ch;margin-top:8px}
+.sub{margin-top:28px}.sub>h3{margin-bottom:8px}
+.note{font-size:12.5px;color:var(--ink-3);margin-top:10px;max-width:76ch}
+.note b{color:var(--ink-2);font-weight:500}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:28px}
+.kpi{background:var(--surface);padding:14px 16px 12px;min-width:0}
+.kpi .l{font-size:12px;color:var(--ink-2)}
+.kpi .v{font-size:28px;line-height:1.25;font-weight:700;margin-top:2px;letter-spacing:-.005em}
+.kpi .d{font-size:12px;color:var(--ink-3);line-height:1.55;margin-top:2px}
+.kpi .s{font:400 10.5px/1.5 var(--mono);color:var(--ink-3);margin-top:8px;overflow-wrap:anywhere}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.kpi:last-child:nth-child(odd){grid-column:1/-1}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font-weight:500;font-size:12px;color:var(--ink-3);text-align:left;padding:0 14px 8px 0;border-bottom:1px solid var(--axis);white-space:nowrap}
+td{padding:9px 14px 9px 0;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6}
+th.r,td.r{text-align:right}
+td.num,td.r,tbody td:first-child{white-space:nowrap}
+td:last-child,th:last-child{padding-right:0}
+.tbl-card{padding:14px 16px 6px}
+.tag{display:inline-block;font-size:11.5px;line-height:1.4;padding:1px 8px;border-radius:4px;background:var(--wash);color:var(--ink-2);white-space:nowrap}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:8px;vertical-align:-1px}
+.p0{background:var(--s1)}.p1{background:var(--s2)}.p2{background:var(--s3)}.p3{background:var(--s4)}.p4{background:var(--s5)}.p5{background:var(--s6)}.p6{background:var(--s7)}
+.bar{display:block;height:10px;width:100%;min-width:150px;background:var(--wash);border-radius:0 4px 4px 0}
+.bar i{display:block;height:100%;border-radius:0 4px 4px 0}
+code,.code{font:12px/1.6 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
+details{margin-top:14px}
+summary{cursor:pointer;font-size:13px;color:var(--ink-2);padding:4px 0}
+summary:focus-visible,button:focus-visible,a:focus-visible,svg:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.viewer{position:relative;height:clamp(420px,60vw,640px);background:var(--viewer);border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-top:18px}
+.viewer iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--viewer);pointer-events:none}
+.viewer.live iframe{pointer-events:auto}
+.viewer .hint{position:absolute;left:50%;top:12px;transform:translateX(-50%);pointer-events:none;font-size:12px;line-height:1;padding:7px 12px;border-radius:999px;background:rgba(16,19,34,.78);color:#f4ead8;border:1px solid rgba(244,234,216,.25);white-space:nowrap}
+.viewer.live .hint{display:none}
+.poster{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:24px;color:#f4ead8}
+.poster h3{font-size:16px;letter-spacing:.1em;font-weight:500;overflow-wrap:anywhere}
+.poster p{font-size:12.5px;line-height:1.7;color:rgba(244,234,216,.78);max-width:46ch}
+.btn{font:500 13px/1 var(--font);letter-spacing:.06em;padding:11px 20px;border-radius:6px;border:1px solid #f4ead8;background:#f4ead8;color:#101322;cursor:pointer}
+.btn:hover{background:#fff}
+.links{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-size:12.5px;color:var(--ink-3)}
+.shots{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin:22px 0 0}
+.shots figure{margin:0;min-width:0}
+.shots img{display:block;width:100%;height:auto;border-radius:6px;border:1px solid var(--line);background:var(--viewer)}
+.shots figcaption{font-size:12.5px;color:var(--ink-3);margin-top:6px;line-height:1.6}
+.chart{padding:14px 16px 12px;margin-top:18px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink-2);margin:0 0 10px;padding:0;list-style:none}
+.tlwrap{overflow-x:auto;position:relative}.tlin{position:relative}
+svg text{font-family:var(--font)}
+.t{font-size:11px;fill:var(--ink-3)}.t2{fill:var(--ink-2)}.tb{font-weight:700}
+.gl{stroke:var(--grid);stroke-width:1;shape-rendering:crispEdges}
+.ax{stroke:var(--axis);stroke-width:1;shape-rendering:crispEdges}
+.f0{fill:var(--s1)}.f1{fill:var(--s2)}.f2{fill:var(--s3)}.f3{fill:var(--s4)}.f4{fill:var(--s5)}.f5{fill:var(--s6)}.f6{fill:var(--s7)}
+.on0{fill:var(--on1)}.on1{fill:var(--on2)}
+.jb{fill:var(--ink-3)}.jb.bad,.fail{fill:var(--crit)}
+.area{fill:var(--ink);opacity:.09}
+.ctx{fill:none;stroke:var(--ink-2);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.dot{fill:var(--ink-2);stroke:var(--surface);stroke-width:2}
+.cross{stroke:var(--ink-3);stroke-width:1;shape-rendering:crispEdges}
+.sel{fill:none;stroke:var(--ink);stroke-width:1.5}
+.tip{position:absolute;pointer-events:none;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:6px;padding:9px 11px;font-size:12px;line-height:1.55;width:268px;z-index:2}
+.tip[hidden]{display:none}
+.tip .h{display:flex;align-items:center;gap:8px;color:var(--ink-2);margin-bottom:5px}
+.tip .h b{font-weight:700;color:var(--ink)}
+.tip dl{display:grid;grid-template-columns:auto 1fr;gap:1px 12px;margin:0}
+.tip dt{color:var(--ink-3)}.tip dd{margin:0;text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.tip .i{margin-top:6px;color:var(--ink-2);font-size:11.5px;overflow-wrap:anywhere}
+.obs{display:grid;gap:18px;margin:18px 0 0;padding:0;list-style:none}
+.obs li{display:grid;grid-template-columns:minmax(0,15em) minmax(0,1fr);gap:4px 24px}
+.obs h3{font-size:14px}.obs p{color:var(--ink-2);max-width:68ch}
+@media (max-width:720px){.obs li{grid-template-columns:1fr}}
+pre.prompt{margin:0;white-space:pre-wrap;font:13px/1.8 var(--mono);color:var(--ink-2);padding:14px 16px;overflow-wrap:anywhere}
+pre.raw{white-space:pre-wrap;font:12px/1.6 var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;overflow-wrap:anywhere;margin:8px 0 0}
+.raw-err{display:block;margin-top:3px;font:11.5px/1.5 var(--mono);color:var(--ink-3);white-space:pre-wrap;overflow-wrap:anywhere}
+.md h2,.md h3{margin-top:22px}.md table{margin:10px 0}.md code{font:12px var(--mono);background:var(--wash);padding:.1rem .3rem;border-radius:4px}
+.md pre{padding:.75rem;overflow:auto;background:var(--wash);border-radius:8px}.md pre code{background:none;padding:0}
+.md ul{padding-left:22px}.md blockquote{margin-inline:0;padding-inline-start:1rem;border-inline-start:3px solid var(--line);color:var(--ink-2)}
+footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-size:12px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style></head><body><main>
+<header>
+  <p class="eyebrow">runs / 2026-10-21 / 000557-220000-baseline-14759f1a</p>
+  <div style="margin-top:14px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center">
+    <span class="status"><i></i>completed · exit 0</span>
+    <span class="chip" title="モデル">Qwen3.8-Flash-Next UD-Q4_K_XL</span>
+    <span class="eyebrow">2026-10-21 00:05:57 → 01:02:33 (+09:00)</span>
+  </div>
+  <h1 style="margin-top:14px">単一HTMLのボクセル塔庭園、全書き直し4回と9件のエラーを経て約57分で完遂</h1>
+  <p class="lede">Qwen3.8-Flash-Next UD-Q4_K_XL が、ボクセル芸術の五重塔庭園シーンを単一HTMLにする課題を実行した。3396秒・51呼び出し・出力147,853トークンで、全文書き出しの write を4回（うち1回は path 欠落で失敗）行った後、headless レンダリングによる描画確認と微修正ループに移行した。status=completed・exit_code=0 で、成果物 pagoda-garden.html（42,865バイト）を残して終了した。</p>
+  
+  
+  <dl class="meta">
+    <div><dt>モデル</dt><dd>Qwen3.8-Flash-Next UD-Q4_K_XL</dd></div>
+    <div><dt>effort / thinking</dt><dd>high</dd></div>
+    <div><dt>context window</dt><dd>1,048,576 tokens</dd></div>
+    <div><dt>エージェント</dt><dd>omp 18.12.3 (--approval-mode yolo)</dd></div>
+  </dl>
+  <div class="kpis" role="list"><div class="kpi" role="listitem"><div class="l">所要時間</div><div class="v num">56:36</div><div class="d">3396.0 秒（run.json の elapsed_s）</div><div class="s">run.json</div></div><div class="kpi" role="listitem"><div class="l">API 呼び出し</div><div class="v num">51</div><div class="d">主ループ 51 回</div><div class="s">logs/tap.jsonl</div></div><div class="kpi" role="listitem"><div class="l">出力トークン</div><div class="v num">147,853</div><div class="d">thinking を含む</div><div class="s">tap.jsonl usage</div></div><div class="kpi" role="listitem"><div class="l">decode 速度（tok/s）</div><div class="v num">49.8</div><div class="d">出力 147,853 tok ÷ decode 2969.9 秒。thinking を含み、prefill は含まない。ドラフト受理率 84.5%</div><div class="s">tap.jsonl timings</div></div><div class="kpi" role="listitem"><div class="l">最大コンテキスト</div><div class="v num">174.0K</div><div class="d">1,048,576 の 16.6%</div><div class="s">tap.jsonl prompt_tokens</div></div><div class="kpi" role="listitem"><div class="l">キャッシュ命中</div><div class="v num">91.8%</div><div class="d">prompt 累計 7.03M のうち 6.46M。累計は各呼び出しの合計で、コンテキスト長ではない</div><div class="s">tap.jsonl cached_tokens</div></div><div class="kpi" role="listitem"><div class="l">推論が占める時間</div><div class="v num">96%</div><div class="d">prompt 289.7 秒 + decode 2969.9 秒 = 3259.6 秒 / 壁時計 3394.9 秒</div><div class="s">tap.jsonl timings</div></div><div class="kpi" role="listitem"><div class="l">ツール呼び出し</div><div class="v num">53</div><div class="d">bash 21 · edit 16 · read 11 · write 4 · grep 1</div><div class="s">logs/events.jsonl</div></div><div class="kpi" role="listitem"><div class="l">isError の結果</div><div class="v num">9</div><div class="d">anchor未確認 4 · edit構文 3 · 依存物欠如 1 · パス指定欠落 1</div><div class="s">events.jsonl toolResult</div></div></div>
+</header>
+<section id="output"><h2>成果物</h2>
+  <p class="sec-lede">work/pagoda-garden.html（42,865 バイト）をそのまま同梱している。重いシーンもあるため、必要なときだけ起動する。</p>
+  <div class="viewer" id="viewer">
+    <div class="poster" id="poster">
+      <h3>pagoda-garden.html</h3>
+      <p>42 KB · 起動するまで読み込まない</p>
+      <button class="btn" id="launch" type="button" data-src="work/pagoda-garden.html">シーンを起動</button>
+    </div>
+  </div>
+  <div class="links"><a href="work/pagoda-garden.html" target="_blank" rel="noopener">新しいタブで開く</a></div>
+  <div class="shots"><figure><img src="shots/shot-1.webp" alt="スクリーンショット 1" loading="lazy"><figcaption>#1 · 32:52 · read</figcaption></figure><figure><img src="shots/shot-2.webp" alt="スクリーンショット 2" loading="lazy"><figcaption>#2 · 33:35 · read</figcaption></figure><figure><img src="shots/shot-3.webp" alt="スクリーンショット 3" loading="lazy"><figcaption>#3 · 41:20 · read</figcaption></figure><figure><img src="shots/shot-4.webp" alt="スクリーンショット 4" loading="lazy"><figcaption>#4 · 44:24 · read</figcaption></figure><figure><img src="shots/shot-5.webp" alt="スクリーンショット 5" loading="lazy"><figcaption>#5 · 44:24 · read</figcaption></figure><figure><img src="shots/shot-6.webp" alt="スクリーンショット 6" loading="lazy"><figcaption>#6 · 45:52 · read</figcaption></figure><figure><img src="shots/shot-7.webp" alt="スクリーンショット 7" loading="lazy"><figcaption>#7 · 48:07 · read</figcaption></figure><figure><img src="shots/shot-8.webp" alt="スクリーンショット 8" loading="lazy"><figcaption>#8 · 51:29 · read</figcaption></figure><figure><img src="shots/shot-9.webp" alt="スクリーンショット 9" loading="lazy"><figcaption>#9 · 52:58 · read</figcaption></figure><figure><img src="shots/shot-10.webp" alt="スクリーンショット 10" loading="lazy"><figcaption>#10 · 54:49 · read</figcaption></figure><figure><img src="shots/shot-11.webp" alt="スクリーンショット 11" loading="lazy"><figcaption>#11 · 54:49 · read</figcaption></figure></div>
+  <p class="note">logs/events.jsonl の画像ブロックを内容ハッシュで重複排除して時系列に並べた、制作中の検証用スクリーンショット。最終版とは限らない。</p>
+  <div class="sub">
+    <h3>成果物の構成</h3>
+    <div class="card tbl-card"><div class="scroll"><table style="min-width:560px">
+      <thead><tr><th>要素</th><th>内容</th></tr></thead>
+      <tbody><tr><td>配布形式</td><td>pagoda-garden.html 単一ファイル43KB。three.js r160 を CDN の importmap で読み込み、他の依存0、コンソールエラー0を headless Chrome で検証済み。</td></tr><tr><td>全体構成</td><td>黄昏時にレンダリングされた浮遊ボクセル島。シード付き決定論的レイアウトで静的27,223ボクセル＋アニメーション約1,200ボクセル。</td></tr><tr><td>五重塔</td><td>白漆喰壁・朱の柱・四面の格子窓・東扉上部の発光欄間、.story ごとに勾配瓦屋根、金唐破風と反り金先、風鐸、金輪九輪と発光宝珠の相輪。</td></tr><tr><td>基壇</td><td>三段の石舞台と手すり、東階段両側の岩、狛犬2体。</td></tr><tr><td>鯉池</td><td>深度で色が変わるアニメーション水（波紋・色揺らぎ）、岩の島2つ、蓮とガマ、水面越しに elliptical 軌道で泳ぐ6匹の鯉（紅白・橙・白・頭黒）。</td></tr><tr><td>滝</td><td>崖上の火口池から落ちる落水・飛沫340ボクセル、霧スプライト、岩壁と越流口。</td></tr><tr><td>樹木</td><td>桜8本（白八重2本、大桜に藤）、紅葉3本、常時300枚の種別色付き落花、竹藪約58本、仕立松、躑躅。</td></tr><tr><td>橋と参道</td><td>入江に架かる放物線拱の赤い月橋（白笠木）、柱渡しのに、大鳥居と紅垂れの狐2体、道標。</td></tr><tr><td>茶室・祠</td><td>発光障子・青暖簾・丸窓・茅葺屋根・吊り提灯・蹲踞・掛樋・赤番傘の茶屋、丘上のミニ鳥居付き祠、熊手と渦紋の枯山水。</td></tr><tr><td>石灯籠</td><td>計14基のうち8基は火袋が発光する実名残は最終メッセージが省略。</td></tr></tbody>
+    </table></div></div>
+    <p class="note">モデルの最終メッセージから読み取った内容。コードの確認はしていない。</p>
+  </div></section>
+<section id="timeline"><h2>タイムライン</h2>
+  <p class="sec-lede">51 回の API 呼び出しを時間順に並べた。上段の帯の幅が各呼び出しの所要時間で、帯の間の空白がツールの実行時間。下段はその時点のコンテキスト長。</p>
+  <div class="card chart">
+    <ul class="legend" id="legend"></ul>
+    <div class="tlwrap" id="tl"><div class="tlin" id="tlin">
+      <svg id="tlsvg" tabindex="0" role="group" aria-label="51 回の API 呼び出しのタイムライン。左右の矢印キーで呼び出しを選択できる。"></svg>
+      <div class="tip" id="tip" hidden></div>
+    </div></div>
+  </div>
+  <p class="note"><b>最も長い 2 回の生成（#3 719 秒・#2 440 秒）で 1159.6 秒、壁時計の 34.2%。</b>出力トークンの上位 4 回（#3・#2・#16・#4）で全体の 68.1%（100,713 / 147,853）。推論以外（ツール実行など）は約 135 秒（4%）。</p>
+  <div class="sub">
+    <h3>フェーズ別の内訳</h3>
+    <div class="card tbl-card"><div class="scroll"><table style="min-width:760px">
+      <thead><tr><th>フェーズ</th><th>経過</th><th class="r">所要</th><th>全体に占める割合</th><th class="r">呼び出し</th><th class="r">出力 tok</th><th>何をしたか</th></tr></thead>
+      <tbody><tr><td><span class="sw p0"></span>設計と初稿</td><td class="num">0:00–31:26</td><td class="r num">1886 秒</td>
+        <td><span class="bar"><i class="p0" style="width:55.56027173437591%"></i></span><span class="note" style="display:block;margin:2px 0 0">55.6%</span></td>
+        <td class="r num">4</td><td class="r num">95,251</td><td>bash でワークスペースとブラウザを確認後、シーンHTMLを3回連続で全文書き出し。2回目は path 欠落でバリデーションに失敗し、3回目で書き切った。</td></tr><tr><td><span class="sw p1"></span>構文修正と初描画</td><td class="num">31:26–32:15</td><td class="r num">49 秒</td>
+        <td><span class="bar"><i class="p1" style="width:1.4496898760594135%"></i></span><span class="note" style="display:block;margin:2px 0 0">1.4%</span></td>
+        <td class="r num">4</td><td class="r num">1,950</td><td>暗黙のグローバル変数代入を特定して edit で修正し、埋め込みスクリプトの構文チェックと headless レンダリングのスモークテストを通した。</td></tr><tr><td><span class="sw p2"></span>API修正と再記述</td><td class="num">32:15–41:20</td><td class="r num">545 秒</td>
+        <td><span class="bar"><i class="p2" style="width:16.05448472768093%"></i></span><span class="note" style="display:block;margin:2px 0 0">16.1%</span></td>
+        <td class="r num">10</td><td class="r num">26,213</td><td>r160 の OrbitControls が camera を要求するためコンストラクタ呼び出しを修正し、初回描画を確認。枝葉密度などの改善後に別視点も入れて全文再記述し、再描画で反映を確かめた。</td></tr><tr><td><span class="sw p3"></span>池と水の調整</td><td class="num">41:20–48:07</td><td class="r num">406 秒</td>
+        <td><span class="bar"><i class="p3" style="width:11.968571986545827%"></i></span><span class="note" style="display:block;margin:2px 0 0">12.0%</span></td>
+        <td class="r num">17</td><td class="r num">12,446</td><td>カメラ再フレーミング、花弁数・サイズの縮小、混入したゴミ行の除去を行い、主画面と池の接写を往復した。水マテリアルの行を特定して明るさ・奥行きを調整し、俯瞰描画と水量セル数で池の形状を検証した。</td></tr><tr><td><span class="sw p4"></span>描画修正と構図</td><td class="num">48:07–54:50</td><td class="r num">403 秒</td>
+        <td><span class="bar"><i class="p4" style="width:11.867126685563466%"></i></span><span class="note" style="display:block;margin:2px 0 0">11.9%</span></td>
+        <td class="r num">14</td><td class="r num">8,673</td><td>床の z-fighting、アクネ、水色を edit で修正し、池と主構図を再検証した。引きの hero カメラを南東方向に設定するのに edit が2度失敗し、行番号特定を挟んで再試行した後、2角度の描画で構図を確かめた。</td></tr><tr><td><span class="sw p5"></span>最終検証と報告</td><td class="num">54:50–56:35</td><td class="r num">105 秒</td>
+        <td><span class="bar"><i class="p5" style="width:3.099854989774462%"></i></span><span class="note" style="display:block;margin:2px 0 0">3.1%</span></td>
+        <td class="r num">2</td><td class="r num">3,320</td><td>bash で最終の構文チェックとコンソールエラー0件を検証し、成果物の構成を列挙した完了報告を出力した。</td></tr></tbody>
+    </table></div></div>
+    <p class="note">フェーズの切れ目は、ログから読み取れる作業内容の変わり目（LLM による区切り）。所要時間は、そのフェーズの最初の呼び出しの開始から次のフェーズの最初の呼び出しの開始まで。</p>
+    <details>
+      <summary>51 回の呼び出しを表で見る</summary>
+      <div class="card tbl-card" style="margin-top:8px"><div class="scroll"><table style="min-width:820px">
+        <thead><tr><th>#</th><th>種別</th><th>フェーズ</th><th class="r">開始</th><th class="r">所要 秒</th><th class="r">prompt</th><th class="r">うち cache</th><th class="r">出力</th><th class="r">tok/s</th><th class="r">HTTP</th><th>ツール</th></tr></thead>
+        <tbody><tr><td class="num">1</td><td>主ループ</td><td><span class="sw p0"></span>設計と初稿</td>
+        <td class="r num">0:00</td><td class="r num">362.8</td><td class="r num">7,857</td><td class="r num">0</td><td class="r num">15,935</td>
+        <td class="r num">44.5</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">2</td><td>主ループ</td><td><span class="sw p0"></span>設計と初稿</td>
+        <td class="r num">6:04</td><td class="r num">440.1</td><td class="r num">23,986</td><td class="r num">23,794</td><td class="r num">23,971</td>
+        <td class="r num">54.6</td><td class="r num">200</td><td class="code">write</td></tr><tr><td class="num">3</td><td>主ループ</td><td><span class="sw p0"></span>設計と初稿</td>
+        <td class="r num">13:24</td><td class="r num">719.5</td><td class="r num">47,999</td><td class="r num">23,981</td><td class="r num">35,101</td>
+        <td class="r num">49.6</td><td class="r num">200</td><td class="code">write</td></tr><tr><td class="num">4</td><td>主ループ</td><td><span class="sw p0"></span>設計と初稿</td>
+        <td class="r num">25:24</td><td class="r num">362.2</td><td class="r num">83,238</td><td class="r num">83,101</td><td class="r num">20,244</td>
+        <td class="r num">56.0</td><td class="r num">200</td><td class="code">write</td></tr><tr><td class="num">5</td><td>主ループ</td><td><span class="sw p1"></span>構文修正と初描画</td>
+        <td class="r num">31:26</td><td class="r num">6.4</td><td class="r num">103,524</td><td class="r num">103,486</td><td class="r num">218</td>
+        <td class="r num">39.4</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">6</td><td>主ループ</td><td><span class="sw p1"></span>構文修正と初描画</td>
+        <td class="r num">31:33</td><td class="r num">23.2</td><td class="r num">104,028</td><td class="r num">103,742</td><td class="r num">1,047</td>
+        <td class="r num">47.3</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">7</td><td>主ループ</td><td><span class="sw p1"></span>構文修正と初描画</td>
+        <td class="r num">31:56</td><td class="r num">5.2</td><td class="r num">105,551</td><td class="r num">105,077</td><td class="r num">179</td>
+        <td class="r num">48.5</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">8</td><td>主ループ</td><td><span class="sw p1"></span>構文修正と初描画</td>
+        <td class="r num">32:01</td><td class="r num">10.5</td><td class="r num">105,756</td><td class="r num">105,730</td><td class="r num">506</td>
+        <td class="r num">50.4</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">9</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">32:15</td><td class="r num">36.5</td><td class="r num">108,487</td><td class="r num">106,263</td><td class="r num">1,583</td>
+        <td class="r num">45.8</td><td class="r num">200</td><td class="code">bash + read</td></tr><tr><td class="num">10</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">32:52</td><td class="r num">15.2</td><td class="r num">112,114</td><td class="r num">110,071</td><td class="r num">555</td>
+        <td class="r num">43.4</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">11</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">33:07</td><td class="r num">3.4</td><td class="r num">112,867</td><td class="r num">112,668</td><td class="r num">96</td>
+        <td class="r num">42.1</td><td class="r num">200</td><td class="code">grep</td></tr><tr><td class="num">12</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">33:11</td><td class="r num">2.9</td><td class="r num">113,087</td><td class="r num">112,964</td><td class="r num">92</td>
+        <td class="r num">46.5</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">13</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">33:14</td><td class="r num">7.1</td><td class="r num">113,275</td><td class="r num">113,180</td><td class="r num">277</td>
+        <td class="r num">44.7</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">14</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">33:32</td><td class="r num">3.3</td><td class="r num">114,189</td><td class="r num">113,551</td><td class="r num">74</td>
+        <td class="r num">40.4</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">15</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">33:35</td><td class="r num">39.9</td><td class="r num">115,868</td><td class="r num">114,262</td><td class="r num">1,619</td>
+        <td class="r num">42.7</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">16</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">34:15</td><td class="r num">400.5</td><td class="r num">117,971</td><td class="r num">117,487</td><td class="r num">21,397</td>
+        <td class="r num">53.6</td><td class="r num">200</td><td class="code">write</td></tr><tr><td class="num">17</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">40:56</td><td class="r num">10.2</td><td class="r num">139,411</td><td class="r num">139,368</td><td class="r num">410</td>
+        <td class="r num">44.8</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">18</td><td>主ループ</td><td><span class="sw p2"></span>API修正と再記述</td>
+        <td class="r num">41:17</td><td class="r num">3.8</td><td class="r num">139,854</td><td class="r num">139,822</td><td class="r num">110</td>
+        <td class="r num">35.8</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">19</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">41:20</td><td class="r num">85.5</td><td class="r num">141,569</td><td class="r num">139,964</td><td class="r num">3,692</td>
+        <td class="r num">44.2</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">20</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">42:46</td><td class="r num">19.6</td><td class="r num">145,676</td><td class="r num">145,261</td><td class="r num">830</td>
+        <td class="r num">46.2</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">21</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:06</td><td class="r num">23.3</td><td class="r num">147,524</td><td class="r num">146,508</td><td class="r num">994</td>
+        <td class="r num">46.2</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">22</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:29</td><td class="r num">3.7</td><td class="r num">148,575</td><td class="r num">148,517</td><td class="r num">116</td>
+        <td class="r num">45.0</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">23</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:33</td><td class="r num">3.8</td><td class="r num">148,874</td><td class="r num">148,690</td><td class="r num">113</td>
+        <td class="r num">43.6</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">24</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:37</td><td class="r num">5.3</td><td class="r num">149,061</td><td class="r num">148,987</td><td class="r num">192</td>
+        <td class="r num">42.9</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">25</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:42</td><td class="r num">4.3</td><td class="r num">149,436</td><td class="r num">149,254</td><td class="r num">144</td>
+        <td class="r num">44.4</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">26</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:46</td><td class="r num">8.6</td><td class="r num">149,700</td><td class="r num">149,580</td><td class="r num">307</td>
+        <td class="r num">41.2</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">27</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">43:55</td><td class="r num">5.6</td><td class="r num">150,025</td><td class="r num">150,007</td><td class="r num">255</td>
+        <td class="r num">50.1</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">28</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">44:21</td><td class="r num">3.2</td><td class="r num">150,374</td><td class="r num">150,281</td><td class="r num">107</td>
+        <td class="r num">44.6</td><td class="r num">200</td><td class="code">read + read</td></tr><tr><td class="num">29</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">44:24</td><td class="r num">59.8</td><td class="r num">153,668</td><td class="r num">150,482</td><td class="r num">2,431</td>
+        <td class="r num">42.5</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">30</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">45:24</td><td class="r num">5.4</td><td class="r num">156,242</td><td class="r num">156,099</td><td class="r num">196</td>
+        <td class="r num">45.4</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">31</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">45:30</td><td class="r num">7.9</td><td class="r num">156,988</td><td class="r num">156,439</td><td class="r num">283</td>
+        <td class="r num">45.6</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">32</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">45:49</td><td class="r num">3.1</td><td class="r num">157,331</td><td class="r num">157,270</td><td class="r num">72</td>
+        <td class="r num">39.2</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">33</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">45:53</td><td class="r num">90.7</td><td class="r num">157,474</td><td class="r num">23,981</td><td class="r num">1,414</td>
+        <td class="r num">43.9</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">34</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">47:23</td><td class="r num">29.7</td><td class="r num">158,960</td><td class="r num">158,888</td><td class="r num">1,227</td>
+        <td class="r num">42.8</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">35</td><td>主ループ</td><td><span class="sw p3"></span>池と水の調整</td>
+        <td class="r num">48:04</td><td class="r num">2.7</td><td class="r num">160,289</td><td class="r num">160,188</td><td class="r num">73</td>
+        <td class="r num">41.4</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">36</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">48:07</td><td class="r num">119.1</td><td class="r num">160,544</td><td class="r num">7,675</td><td class="r num">2,331</td>
+        <td class="r num">43.3</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">37</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">50:06</td><td class="r num">10.0</td><td class="r num">163,120</td><td class="r num">162,876</td><td class="r num">359</td>
+        <td class="r num">41.2</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">38</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">50:16</td><td class="r num">16.8</td><td class="r num">163,673</td><td class="r num">163,479</td><td class="r num">698</td>
+        <td class="r num">44.7</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">39</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">50:33</td><td class="r num">10.9</td><td class="r num">164,442</td><td class="r num">164,371</td><td class="r num">503</td>
+        <td class="r num">50.6</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">40</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">50:44</td><td class="r num">12.4</td><td class="r num">165,200</td><td class="r num">164,949</td><td class="r num">530</td>
+        <td class="r num">48.3</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">41</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">50:56</td><td class="r num">12.1</td><td class="r num">166,499</td><td class="r num">165,730</td><td class="r num">474</td>
+        <td class="r num">46.4</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">42</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">51:27</td><td class="r num">2.4</td><td class="r num">167,002</td><td class="r num">166,975</td><td class="r num">62</td>
+        <td class="r num">38.3</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">43</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">51:29</td><td class="r num">88.1</td><td class="r num">167,135</td><td class="r num">7,675</td><td class="r num">817</td>
+        <td class="r num">43.7</td><td class="r num">200</td><td class="code">read</td></tr><tr><td class="num">44</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">52:58</td><td class="r num">61.7</td><td class="r num">168,036</td><td class="r num">131,323</td><td class="r num">1,848</td>
+        <td class="r num">43.2</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">45</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">53:59</td><td class="r num">5.3</td><td class="r num">170,031</td><td class="r num">168,031</td><td class="r num">83</td>
+        <td class="r num">38.0</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">46</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">54:05</td><td class="r num">4.0</td><td class="r num">170,167</td><td class="r num">170,115</td><td class="r num">118</td>
+        <td class="r num">45.1</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">47</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">54:09</td><td class="r num">3.9</td><td class="r num">170,442</td><td class="r num">170,288</td><td class="r num">124</td>
+        <td class="r num">44.0</td><td class="r num">200</td><td class="code">edit</td></tr><tr><td class="num">48</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">54:13</td><td class="r num">13.4</td><td class="r num">170,707</td><td class="r num">170,566</td><td class="r num">560</td>
+        <td class="r num">46.3</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">49</td><td>主ループ</td><td><span class="sw p4"></span>描画修正と構図</td>
+        <td class="r num">54:45</td><td class="r num">4.9</td><td class="r num">171,294</td><td class="r num">171,269</td><td class="r num">166</td>
+        <td class="r num">40.4</td><td class="r num">200</td><td class="code">read + read</td></tr><tr><td class="num">50</td><td>主ループ</td><td><span class="sw p5"></span>最終検証と報告</td>
+        <td class="r num">54:50</td><td class="r num">73.7</td><td class="r num">171,579</td><td class="r num">131,323</td><td class="r num">2,394</td>
+        <td class="r num">44.5</td><td class="r num">200</td><td class="code">bash</td></tr><tr><td class="num">51</td><td>主ループ</td><td><span class="sw p5"></span>最終検証と報告</td>
+        <td class="r num">56:14</td><td class="r num">21.3</td><td class="r num">174,040</td><td class="r num">173,977</td><td class="r num">926</td>
+        <td class="r num">46.5</td><td class="r num">200</td><td class="code"></td></tr></tbody>
+      </table></div></div>
+    </details>
+  </div></section>
+<section id="errors"><h2>試行錯誤</h2>
+  <p class="sec-lede">ツールがエラー（isError）を返した結果の一覧。ツールは成功したのにモデル自身が内容を壊したケースは、ここには出ない。</p>
+  <div class="sub">
+    <h3>エラーとして記録された 9 件</h3>
+    <div class="card tbl-card"><div class="scroll"><table style="min-width:640px">
+      <thead><tr><th>経過</th><th>ツール</th><th>起きたこと</th><th>分類</th></tr></thead>
+      <tbody><tr><td class="num">6:03</td><td class="code">bash</td><td>t=363s の環境確認で npx がパッケージ欠落と YES オプション不在により実行中止となった。<span class="raw-err">total 0 drwxr-xr-x 2 kzmake staff 64 Oct 21 00:05 . drwxr-xr-x 10 kzmake staff 320 Oct 21 00:05 .. --- Google Chrome.app Safari.app --- npm error npx canceled due to missing packages and no YES option</span></td><td><span class="tag">依存物欠如</span></td></tr><tr><td class="num">25:24</td><td class="code">write</td><td>t=1524s の write で path 引数を省略したまま全文HTMLを渡してバリデーションに失敗した。<span class="raw-err">Validation failed for tool &quot;write&quot;: - path: path must be a string (was missing) Received arguments: { &quot;content&quot;: &quot;&lt;!DOCTYPE html&gt;\n&lt;html lang=\&quot;en\&quot;&gt;\n&lt;head&gt;\n&lt;meta charset=\&quot;utf-8\&quot;&gt;\n&lt;meta name=\&quot;vi</span></td><td><span class="tag">パス指定欠落</span></td></tr><tr><td class="num">33:07</td><td class="code">edit</td><td>t=1987s の edit が583行目で構文ブロックを解釈できず、明示的な行指定を指示された。<span class="raw-err">line 1: `PUT 583*:` could not resolve a syntactic block beginning on line 583 (unsupported language, blank/closer line, or parse error). Use `PUT 583.=M:` with explicit lines. 581:scene.add(sun); 582:</span></td><td><span class="tag">edit構文</span></td></tr><tr><td class="num">43:29</td><td class="code">edit</td><td>t=2609s の edit で ':' なしの PUT は本体行を受け取れないという構文拒否が起きた。<span class="raw-err">line 3: `PUT` without `:` is clipboard-backed and takes no body rows. Add `:` after the locator to write literal content (`PUT &gt;40:` then `+TEXT` rows).</span></td><td><span class="tag">edit構文</span></td></tr><tr><td class="num">43:42</td><td class="code">edit</td><td>t=2622s の edit が表示したことのない711-712行目を指していて拒否された。<span class="raw-err">This edit anchors to lines 711-712 of pagoda-garden.html that [pagoda-garden.html#2CC0] never displayed (it showed a partial range, a search hit, or a folded summary). Actual file content at those lin</span></td><td><span class="tag">anchor未確認</span></td></tr><tr><td class="num">50:33</td><td class="code">edit</td><td>t=3033s の edit で hunk ヘッダーなしのペイロードにより行頭指定形式が不正とされた。<span class="raw-err">line 1: payload line has no preceding hunk header. Use `PUT N.=M:`, `CUT N.=M`, or `PUT &lt;N:`/`PUT &gt;N:` above the body. Got &quot;PUT 172.:172:&quot;.</span></td><td><span class="tag">edit構文</span></td></tr><tr><td class="num">50:44</td><td class="code">edit</td><td>t=3044s の edit が表示していない832、834行目を指していて拒否された。<span class="raw-err">This edit anchors to lines 832, 834 of pagoda-garden.html that [pagoda-garden.html#79A7] never displayed (it showed a partial range, a search hit, or a folded summary). Actual file content at those li</span></td><td><span class="tag">anchor未確認</span></td></tr><tr><td class="num">53:59</td><td class="code">edit</td><td>t=3239s の edit が表示していない567行目を指していて拒否された。<span class="raw-err">This edit anchors to lines 567 of pagoda-garden.html that [pagoda-garden.html#92A4] never displayed (it showed a partial range, a search hit, or a folded summary). Actual file content at those lines: </span></td><td><span class="tag">anchor未確認</span></td></tr><tr><td class="num">54:09</td><td class="code">edit</td><td>t=3249s の edit が表示していない568行目を指していて再び拒否された。<span class="raw-err">This edit anchors to lines 568 of pagoda-garden.html that [pagoda-garden.html#92A4] never displayed (it showed a partial range, a search hit, or a folded summary). Actual file content at those lines: </span></td><td><span class="tag">anchor未確認</span></td></tr></tbody>
+    </table></div></div>
+    <p class="note">経過は、そのツールを呼んだターンの終了時刻。エラー本文は先頭 300 文字までで、パスや接続先は伏せてある。</p>
+  </div></section>
+<section id="observations"><h2>気づいた点</h2>
+  <p class="sec-lede">計測データ（呼び出し一覧・エラー・最終メッセージ）だけから LLM が書いた読み取り。文中の数値は、上の KPI や表と照らして確認する。</p>
+  <ul class="obs"><li><h3>トークンの68%が巨大書き</h3><p>write 呼び出し #2・#3・#4・#16 の計4回で出力 100,713 トークン、全 147,853 の約68%を占め、経過も約1923秒で総時間3396秒の57%に達する。43KBのファイルを追記ではなく毎回ゼロから書き直す方針が時間とトークンを支配した。</p></li><li><h3>エラー_echo_で倍増</h3><p>E2 のバリデーション失敗時、エラーメッセージが受信したHTML全文を折り返したため、コンテキストが #3 時点の47,999から #4 時点で83,238へ約35,239トークン（=失敗 write の出力35,101に相当）ほぼ倍増した。path 1語の欠落が以後の全呼び出しの重さに響いた。</p></li><li><h3>同じedit失敗が3度</h3><p>E5・E7/E8/E9 に相当する「未表示行への anchor」拒否が t=2622s、t=3044s、t=3249s の3局面で計4回発生し、edit 16件のうち4件が失敗している。いずれも直後の再試行（#25、#40、#47）で4〜12秒以内に成功しているが、先に該当行を read/grep で確認する手順へは恒久的に変わらなかった。</p></li><li><h3>池検証に約465秒</h3><p>t=2622〜3087s の #26〜#42 が池の描画検証ループに充てられ、接写・俯瞰・奥行き計算・水量セル数の照合を繰り返した末に #38〜#40 で z-fighting と水色を修正する構成になっている。この区間の17呼び出しはほぼ3〜90秒の小さな bash/edit/read で、単一の視覚課題に最も試行回数を費やした箇所である。</p></li><li><h3>検証は描画駆動で終始</h3><p>shots 計11枚が headless レンダリングで取得され、#8 の初回スモークから #50 の最終構文・コンソール確認まで、編集の直後に必ず再描画と read による目視照合が挟まれている。最終メッセージがコンソールエラー0件を主張する根拠も #50 の検証呼び出しに対応する。</p></li></ul></section>
+<section id="input"><h2>入力と設定</h2>
+  <div class="card" style="margin-top:18px"><pre class="prompt">Design and create a very creative, elaborate, and detailed voxel art scene of a pagoda in a beautiful garden with trees, including some cherry blossoms. Make the scene impressive and varied and use colorful voxels. Add as many details as possible to showcase your attention to them. Use whatever libraries to get this done but make sure I can paste it all into a single HTML file.</pre></div>
+  <p class="note">input/prompt.md の全文。SHA-256 は ceece4685b37…。</p>
+  <div class="card tbl-card" style="margin-top:14px"><div class="scroll"><table style="min-width:560px"><tbody>
+    <tr><td>omp の起動オプション</td><td class="code">--print --mode json --thinking high --no-title --approval-mode yolo</td></tr><tr><td>upstream</td><td class="code">（接続先は伏せている）</td></tr><tr><td>タイムアウト</td><td class="code">10,800 秒</td></tr>
+  </tbody></table></div></div>
+  <details><summary>config/00-omp.yml</summary><pre class="raw">setupVersion: 2
+autolearn:
+  enabled: false
+  autoContinue: false
+</pre></details></section>
+<footer>出典は run ディレクトリの run.json、logs/tap.jsonl、logs/events.jsonl、input/prompt.md、work/ の生成ファイル、events.jsonl の画像ブロック。run ディレクトリには変更を加えていない。KPI・タイムライン・各表の数値は決定論的な集計。見出し・リード・フェーズの説明・エラーの分類・気づいた点は LLM（omp 経由）が計測データだけから書いた文章で、文中の数値が集計と食い違うことがある。</footer>
+</main>
+<script type="application/json" id="data">{"T":3394.933,"peak":174040,"contextWindow":1048576,"phases":[{"n":"設計と初稿"},{"n":"構文修正と初描画"},{"n":"API修正と再記述"},{"n":"池と水の調整"},{"n":"描画修正と構図"},{"n":"最終検証と報告"}],"calls":[{"n":1,"kind":"main","aborted":false,"phase":0,"t0":0,"dur":362.752,"prompt":7857,"cached":0,"out":15935,"tps":44.5,"status":200,"tools":["bash"],"intent":"Checking workspace and browser tooling"},{"n":2,"kind":"main","aborted":false,"phase":0,"t0":364.184,"dur":440.134,"prompt":23986,"cached":23794,"out":23971,"tps":54.6,"status":200,"tools":["write"],"intent":"Writing voxel pagoda garden scene"},{"n":3,"kind":"main","aborted":false,"phase":0,"t0":804.382,"dur":719.497,"prompt":47999,"cached":23981,"out":35101,"tps":49.6,"status":200,"tools":["write"],"intent":"Rewriting scene file cleanly"},{"n":4,"kind":"main","aborted":false,"phase":0,"t0":1523.93,"dur":362.235,"prompt":83238,"cached":83101,"out":20244,"tps":56,"status":200,"tools":["write"],"intent":"Rewriting scene file cleanly"},{"n":5,"kind":"main","aborted":false,"phase":1,"t0":1886.234,"dur":6.397,"prompt":103524,"cached":103486,"out":218,"tps":39.4,"status":200,"tools":["bash"],"intent":"Locating bad assignments"},{"n":6,"kind":"main","aborted":false,"phase":1,"t0":1892.706,"dur":23.161,"prompt":104028,"cached":103742,"out":1047,"tps":47.3,"status":200,"tools":["edit"],"intent":"Fixing implicit-global assignments in stoneLantern"},{"n":7,"kind":"main","aborted":false,"phase":1,"t0":1915.912,"dur":5.166,"prompt":105551,"cached":105077,"out":179,"tps":48.5,"status":200,"tools":["bash"],"intent":"Syntax-checking embedded module script"},{"n":8,"kind":"main","aborted":false,"phase":1,"t0":1921.294,"dur":10.546,"prompt":105756,"cached":105730,"out":506,"tps":50.4,"status":200,"tools":["bash"],"intent":"Headless render smoke test"},{"n":9,"kind":"main","aborted":false,"phase":2,"t0":1935.45,"dur":36.464,"prompt":108487,"cached":106263,"out":1583,"tps":45.8,"status":200,"tools":["bash","read"],"intent":"Inspecting OrbitControls r160 head; Viewing first render"},{"n":10,"kind":"main","aborted":false,"phase":2,"t0":1972.153,"dur":15.2,"prompt":112114,"cached":110071,"out":555,"tps":43.4,"status":200,"tools":["edit"],"intent":"Passing camera to OrbitControls"},{"n":11,"kind":"main","aborted":false,"phase":2,"t0":1987.394,"dur":3.387,"prompt":112867,"cached":112668,"out":96,"tps":42.1,"status":200,"tools":["grep"],"intent":"Finding controls line"},{"n":12,"kind":"main","aborted":false,"phase":2,"t0":1990.82,"dur":2.922,"prompt":113087,"cached":112964,"out":92,"tps":46.5,"status":200,"tools":["edit"],"intent":"Fixing OrbitControls constructor call"},{"n":13,"kind":"main","aborted":false,"phase":2,"t0":1993.781,"dur":7.063,"prompt":113275,"cached":113180,"out":277,"tps":44.7,"status":200,"tools":["bash"],"intent":"Re-rendering with fixed controls"},{"n":14,"kind":"main","aborted":false,"phase":2,"t0":2011.596,"dur":3.267,"prompt":114189,"cached":113551,"out":74,"tps":40.4,"status":200,"tools":["read"],"intent":"Viewing rendered scene"},{"n":15,"kind":"main","aborted":false,"phase":2,"t0":2015.143,"dur":39.906,"prompt":115868,"cached":114262,"out":1619,"tps":42.7,"status":200,"tools":["edit"],"intent":"Boosting canopy density, grass saturation, tuft placement"},{"n":16,"kind":"main","aborted":false,"phase":2,"t0":2055.088,"dur":400.456,"prompt":117971,"cached":117487,"out":21397,"tps":53.6,"status":200,"tools":["write"],"intent":"Full corrected rewrite with visual upgrades"},{"n":17,"kind":"main","aborted":false,"phase":2,"t0":2455.611,"dur":10.194,"prompt":139411,"cached":139368,"out":410,"tps":44.8,"status":200,"tools":["bash"],"intent":"Syntax check and re-render"},{"n":18,"kind":"main","aborted":false,"phase":2,"t0":2476.523,"dur":3.771,"prompt":139854,"cached":139822,"out":110,"tps":35.8,"status":200,"tools":["read"],"intent":"Viewing improved render"},{"n":19,"kind":"main","aborted":false,"phase":3,"t0":2480.489,"dur":85.465,"prompt":141569,"cached":139964,"out":3692,"tps":44.2,"status":200,"tools":["bash"],"intent":"Locating tweak targets"},{"n":20,"kind":"main","aborted":false,"phase":3,"t0":2566.02,"dur":19.55,"prompt":145676,"cached":145261,"out":830,"tps":46.2,"status":200,"tools":["edit"],"intent":"Reframing camera and brightening water/petals"},{"n":21,"kind":"main","aborted":false,"phase":3,"t0":2585.622,"dur":23.283,"prompt":147524,"cached":146508,"out":994,"tps":46.2,"status":200,"tools":["edit"],"intent":"Removing junk inserted lines"},{"n":22,"kind":"main","aborted":false,"phase":3,"t0":2608.942,"dur":3.677,"prompt":148575,"cached":148517,"out":116,"tps":45,"status":200,"tools":["edit"],"intent":"Removing corrupted lines"},{"n":23,"kind":"main","aborted":false,"phase":3,"t0":2612.662,"dur":3.84,"prompt":148874,"cached":148690,"out":113,"tps":43.6,"status":200,"tools":["bash"],"intent":"Finding real petal lines"},{"n":24,"kind":"main","aborted":false,"phase":3,"t0":2616.574,"dur":5.301,"prompt":149061,"cached":148987,"out":192,"tps":42.9,"status":200,"tools":["edit"],"intent":"Shrinking petal count and size"},{"n":25,"kind":"main","aborted":false,"phase":3,"t0":2621.916,"dur":4.325,"prompt":149436,"cached":149254,"out":144,"tps":44.4,"status":200,"tools":["edit"],"intent":"Shrinking petal count and size retry"},{"n":26,"kind":"main","aborted":false,"phase":3,"t0":2626.287,"dur":8.565,"prompt":149700,"cached":149580,"out":307,"tps":41.2,"status":200,"tools":["bash"],"intent":"Re-checking syntax, making debug view copy"},{"n":27,"kind":"main","aborted":false,"phase":3,"t0":2635.003,"dur":5.619,"prompt":150025,"cached":150007,"out":255,"tps":50.1,"status":200,"tools":["bash"],"intent":"Rendering main and pond close-up"},{"n":28,"kind":"main","aborted":false,"phase":3,"t0":2660.817,"dur":3.226,"prompt":150374,"cached":150281,"out":107,"tps":44.6,"status":200,"tools":["read","read"],"intent":"Viewing main composition; Viewing pond close-up"},{"n":29,"kind":"main","aborted":false,"phase":3,"t0":2664.263,"dur":59.845,"prompt":153668,"cached":150482,"out":2431,"tps":42.5,"status":200,"tools":["bash"],"intent":"Locating water material lines"},{"n":30,"kind":"main","aborted":false,"phase":3,"t0":2724.176,"dur":5.415,"prompt":156242,"cached":156099,"out":196,"tps":45.4,"status":200,"tools":["edit"],"intent":"Brightening water, softening tufts"},{"n":31,"kind":"main","aborted":false,"phase":3,"t0":2729.749,"dur":7.897,"prompt":156988,"cached":156439,"out":283,"tps":45.6,"status":200,"tools":["bash"],"intent":"Rendering pond verification view"},{"n":32,"kind":"main","aborted":false,"phase":3,"t0":2749.192,"dur":3.139,"prompt":157331,"cached":157270,"out":72,"tps":39.2,"status":200,"tools":["read"],"intent":"Verifying water now visible"},{"n":33,"kind":"main","aborted":false,"phase":3,"t0":2752.527,"dur":90.65,"prompt":157474,"cached":23981,"out":1414,"tps":43.9,"status":200,"tools":["bash"],"intent":"Verifying pond depth math"},{"n":34,"kind":"main","aborted":false,"phase":3,"t0":2843.327,"dur":29.664,"prompt":158960,"cached":158888,"out":1227,"tps":42.8,"status":200,"tools":["bash"],"intent":"Top-down render plus water cell count"},{"n":35,"kind":"main","aborted":false,"phase":3,"t0":2883.94,"dur":2.671,"prompt":160289,"cached":160188,"out":73,"tps":41.4,"status":200,"tools":["read"],"intent":"Inspecting top-down pond"},{"n":36,"kind":"main","aborted":false,"phase":4,"t0":2886.814,"dur":119.086,"prompt":160544,"cached":7675,"out":2331,"tps":43.3,"status":200,"tools":["bash"],"intent":"Locating fixes"},{"n":37,"kind":"main","aborted":false,"phase":4,"t0":3006.052,"dur":10.023,"prompt":163120,"cached":162876,"out":359,"tps":41.2,"status":200,"tools":["bash"],"intent":"Finding water color arrays"},{"n":38,"kind":"main","aborted":false,"phase":4,"t0":3016.127,"dur":16.773,"prompt":163673,"cached":163479,"out":698,"tps":44.7,"status":200,"tools":["edit"],"intent":"Fixing z-fight floor, acne, water tone"},{"n":39,"kind":"main","aborted":false,"phase":4,"t0":3032.941,"dur":10.856,"prompt":164442,"cached":164371,"out":503,"tps":50.6,"status":200,"tools":["edit"],"intent":"Fixing z-fight floor, acne, water tone"},{"n":40,"kind":"main","aborted":false,"phase":4,"t0":3043.846,"dur":12.361,"prompt":165200,"cached":164949,"out":530,"tps":48.3,"status":200,"tools":["edit"],"intent":"Applying fixes retry"},{"n":41,"kind":"main","aborted":false,"phase":4,"t0":3056.385,"dur":12.054,"prompt":166499,"cached":165730,"out":474,"tps":46.4,"status":200,"tools":["bash"],"intent":"Verifying pond and main framing"},{"n":42,"kind":"main","aborted":false,"phase":4,"t0":3086.793,"dur":2.379,"prompt":167002,"cached":166975,"out":62,"tps":38.3,"status":200,"tools":["read"],"intent":"Inspecting pond close-up again"},{"n":43,"kind":"main","aborted":false,"phase":4,"t0":3089.417,"dur":88.136,"prompt":167135,"cached":7675,"out":817,"tps":43.7,"status":200,"tools":["read"],"intent":"Viewing main hero shot"},{"n":44,"kind":"main","aborted":false,"phase":4,"t0":3177.729,"dur":61.672,"prompt":168036,"cached":131323,"out":1848,"tps":43.2,"status":200,"tools":["edit"],"intent":"Setting hero camera southeast"},{"n":45,"kind":"main","aborted":false,"phase":4,"t0":3239.43,"dur":5.295,"prompt":170031,"cached":168031,"out":83,"tps":38,"status":200,"tools":["bash"],"intent":"Finding CAM0 line"},{"n":46,"kind":"main","aborted":false,"phase":4,"t0":3244.79,"dur":4.005,"prompt":170167,"cached":170115,"out":118,"tps":45.1,"status":200,"tools":["edit"],"intent":"Setting hero camera southeast"},{"n":47,"kind":"main","aborted":false,"phase":4,"t0":3248.841,"dur":3.945,"prompt":170442,"cached":170288,"out":124,"tps":44,"status":200,"tools":["edit"],"intent":"Setting hero camera retry"},{"n":48,"kind":"main","aborted":false,"phase":4,"t0":3252.83,"dur":13.375,"prompt":170707,"cached":170566,"out":560,"tps":46.3,"status":200,"tools":["bash"],"intent":"Rendering hero views at two angles"},{"n":49,"kind":"main","aborted":false,"phase":4,"t0":3284.523,"dur":4.928,"prompt":171294,"cached":171269,"out":166,"tps":40.4,"status":200,"tools":["read","read"],"intent":"Checking hero framing A; Checking hero framing B"},{"n":50,"kind":"main","aborted":false,"phase":5,"t0":3289.695,"dur":73.688,"prompt":171579,"cached":131323,"out":2394,"tps":44.5,"status":200,"tools":["bash"],"intent":"Final syntax and console validation"},{"n":51,"kind":"main","aborted":false,"phase":5,"t0":3373.672,"dur":21.261,"prompt":174040,"cached":173977,"out":926,"tps":46.5,"status":200,"tools":[],"intent":""}]}</script>
+<script>
+(function(){
+var D=JSON.parse(document.getElementById('data').textContent);
+var CALLS=D.calls,PH=D.phases,T=Math.max(D.T,1);
+function $(s){return document.querySelector(s)}
+function fmtT(s){s=Math.round(s);var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r}
+function fmtN(n){return Math.round(n).toLocaleString('en-US')}
+function fmtK(n){return (n/1000).toFixed(1)+'K'}
+function axisK(v){return v>=1000?(Math.round(v/100)/10)+'K':String(v)}
+function mk(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+var NS='http://www.w3.org/2000/svg';
+function sv(tag,a){var e=document.createElementNS(NS,tag);for(var k in a)e.setAttribute(k,a[k]);return e}
+
+function niceStep(total){var s=[5,10,15,30,60,120,300,600,900,1200,1800,3600,7200,14400];for(var i=0;i<s.length;i++)if(total/s[i]<=7)return s[i];return 14400}
+function niceMax(v){var mag=Math.pow(10,Math.floor(Math.log(v)/Math.LN10)),c=[1,2,4,5,8,10];for(var i=0;i<c.length;i++)if(c[i]*mag>=v)return c[i]*mag;return 10*mag}
+
+var lg=$('#legend');
+if(lg)PH.forEach(function(p,k){var li=mk('li');li.appendChild(mk('span','sw p'+k));li.appendChild(document.createTextNode(p.n));lg.appendChild(li)});
+
+var svg=$('#tlsvg'),tip=$('#tip'),inner=$('#tlin'),wrap=$('#tl');
+if(svg&&CALLS.length){
+var G={},cur=-1;
+var YMAX=D.peak>0?niceMax(D.peak*1.08):1000;
+var longest=CALLS.filter(function(c){return c.kind==='main'}).sort(function(a,b){return b.dur-a.dur}).slice(0,2).map(function(c){return c.n});
+var auxTotal=CALLS.filter(function(c){return c.kind==='aux'}).length;
+
+function render(){
+ var W=Math.max(wrap.clientWidth,600),M={l:46,r:58,t:6,b:26};
+ var laneY=26,laneH=32,jY=laneY+laneH+16,jH=8,cT=jY+jH+34,cH=86,cB=cT+cH,H=cB+M.b,pw=W-M.l-M.r;
+ function x(t){return M.l+t/T*pw}
+ function y(v){return cB-v/YMAX*cH}
+ while(svg.firstChild)svg.removeChild(svg.firstChild);
+ svg.setAttribute('width',W);svg.setAttribute('height',H);svg.setAttribute('viewBox','0 0 '+W+' '+H);
+ inner.style.width=W+'px';
+ G={x:x,y:y,W:W,M:M,laneY:laneY,laneH:laneH,jY:jY,jH:jH,cT:cT,cB:cB,H:H};
+
+ var step=niceStep(T);
+ for(var t=0;t<T;t+=step){
+  svg.appendChild(sv('line',{x1:x(t),x2:x(t),y1:laneY-4,y2:cB,'class':'gl'}));
+  if(x(T)-x(t)>34||t===0){var tx=sv('text',{x:x(t),y:cB+16,'class':'t','text-anchor':t===0?'start':'middle'});tx.textContent=fmtT(t);svg.appendChild(tx)}
+ }
+ var te=sv('text',{x:x(T),y:cB+16,'class':'t t2 tb','text-anchor':'end'});te.textContent=fmtT(T);svg.appendChild(te);
+ svg.appendChild(sv('line',{x1:x(T),x2:x(T),y1:laneY-4,y2:cB,'class':'gl'}));
+
+ var t1=sv('text',{x:M.l,y:14,'class':'t t2'});t1.textContent='LLM \u306E\u547C\u3073\u51FA\u3057\uFF08\u5E45 = \u6240\u8981\u6642\u9593\uFF09';svg.appendChild(t1);
+ var t2=sv('text',{x:M.l,y:cT-12,'class':'t t2'});t2.textContent='\u30B3\u30F3\u30C6\u30AD\u30B9\u30C8\u9577\uFF08prompt tokens\uFF09'+(D.contextWindow?' \u00B7 \u4E0A\u9650 '+axisK(D.contextWindow):'');svg.appendChild(t2);
+
+ [0,YMAX/2,YMAX].forEach(function(v){
+  svg.appendChild(sv('line',{x1:M.l,x2:W-M.r,y1:y(v),y2:y(v),'class':v===0?'ax':'gl'}));
+  var lt=sv('text',{x:M.l-8,y:y(v)+4,'class':'t','text-anchor':'end'});lt.textContent=v===0?'0':axisK(v);svg.appendChild(lt);
+ });
+ svg.appendChild(sv('line',{x1:M.l,x2:W-M.r,y1:laneY+laneH+4,y2:laneY+laneH+4,'class':'gl'}));
+
+ var auxN=0;
+ CALLS.forEach(function(c){
+  var x0=x(c.t0),w=Math.max(1.5,x(c.t0+c.dur)-x0-1);
+  if(c.kind==='aux'){
+   svg.appendChild(sv('rect',{x:x0,y:jY,width:Math.max(w,3),height:jH,rx:2,'class':'jb'+(c.status!==200?' bad':'')}));
+   auxN++;
+   if(auxTotal<=6){var jt=sv('text',{x:x0+Math.max(w,3)/2,y:jY-5,'class':'t','text-anchor':'middle'});jt.textContent='\u88DC\u52A9'+auxN;svg.appendChild(jt)}
+  }else{
+   svg.appendChild(sv('rect',{x:x0,y:laneY,width:w,height:laneH,rx:2,'class':'f'+c.phase+(c.status!==200||c.aborted?' fail':'')}));
+  }
+ });
+ longest.forEach(function(n){
+  var c=CALLS[n-1],w=x(c.t0+c.dur)-x(c.t0)-1;
+  if(w<60)return;
+  var tx=sv('text',{x:x(c.t0)+w/2,y:laneY+laneH/2+4,'class':'t tb on'+(c.phase===0||c.phase===6?'0':'1'),'text-anchor':'middle'});
+  tx.textContent=fmtN(c.out)+' tok \u00B7 '+Math.round(c.dur)+' \u79D2';
+  svg.appendChild(tx);
+  if(tx.getComputedTextLength&&tx.getComputedTextLength()>w-12)tx.textContent=Math.round(c.dur)+' \u79D2';
+  if(tx.getComputedTextLength&&tx.getComputedTextLength()>w-8)svg.removeChild(tx);
+ });
+
+ var mains=CALLS.filter(function(c){return c.kind==='main'&&c.prompt>0});
+ if(!mains.length)mains=CALLS.filter(function(c){return c.prompt>0});
+ if(mains.length){
+ var d='',ar='';
+ mains.forEach(function(c,k){
+  var px=x(c.t0),py=y(c.prompt);
+  if(k===0){d+='M'+px+' '+py;ar+='M'+px+' '+cB+' L'+px+' '+py}
+  else{d+=' L'+px+' '+y(mains[k-1].prompt)+' L'+px+' '+py;ar+=' L'+px+' '+y(mains[k-1].prompt)+' L'+px+' '+py}
+ });
+ var last=mains[mains.length-1];
+ d+=' L'+x(T)+' '+y(last.prompt);ar+=' L'+x(T)+' '+y(last.prompt)+' L'+x(T)+' '+cB+' Z';
+ svg.appendChild(sv('path',{d:ar,'class':'area'}));
+ svg.appendChild(sv('path',{d:d,'class':'ctx'}));
+ svg.appendChild(sv('circle',{cx:x(T),cy:y(last.prompt),r:4,'class':'dot'}));
+ var ep=sv('text',{x:x(T)+10,y:y(last.prompt)+4,'class':'t t2 tb'});ep.textContent=fmtK(last.prompt);svg.appendChild(ep);
+ }
+
+ svg.appendChild(sv('g',{id:'ov'}));
+ if(cur>=0)show(cur);
+}
+
+function nearest(t,py){
+ var best=-1,bd=1e9,auxOnly=auxTotal>0&&py!=null&&py>=G.jY-12&&py<=G.jY+G.jH+8;
+ CALLS.forEach(function(c,k){
+  if(auxOnly!==(c.kind==='aux'))return;
+  var dd=t<c.t0?c.t0-t:(t>c.t0+c.dur?t-(c.t0+c.dur):0);
+  if(dd<bd){bd=dd;best=k}
+ });
+ return best;
+}
+function show(k){
+ cur=k;var c=CALLS[k],ov=$('#ov');if(!ov)return;
+ while(ov.firstChild)ov.removeChild(ov.firstChild);
+ var x0=G.x(c.t0),x1=G.x(c.t0+c.dur),mid=(x0+x1)/2;
+ ov.appendChild(sv('line',{x1:mid,x2:mid,y1:G.laneY-4,y2:G.cB,'class':'cross'}));
+ if(c.kind==='aux'){ov.appendChild(sv('rect',{x:x0-2,y:G.jY-2,width:Math.max(x1-x0,3)+4,height:G.jH+4,rx:3,'class':'sel'}))}
+ else{
+  ov.appendChild(sv('rect',{x:x0-1,y:G.laneY-1,width:Math.max(1.5,x1-x0-1)+2,height:G.laneH+2,rx:3,'class':'sel'}));
+  if(c.prompt>0)ov.appendChild(sv('circle',{cx:x0,cy:G.y(c.prompt),r:4,'class':'dot'}));
+ }
+ tip.hidden=false;
+ while(tip.firstChild)tip.removeChild(tip.firstChild);
+ var h=mk('div','h');h.appendChild(mk('span','sw p'+c.phase));
+ h.appendChild(mk('b',null,'#'+c.n+(c.kind==='aux'?' \u88DC\u52A9':'')));
+ h.appendChild(document.createTextNode(PH[c.phase]?PH[c.phase].n:''));tip.appendChild(h);
+ var dl=mk('dl');
+ function row(a,b){dl.appendChild(mk('dt',null,a));dl.appendChild(mk('dd',null,b))}
+ row('\u7D4C\u904E',fmtT(c.t0)+' \u2192 '+fmtT(c.t0+c.dur));
+ row('\u6240\u8981',c.dur.toFixed(1)+' \u79D2');
+ row('prompt',fmtN(c.prompt)+'\uFF08cache '+fmtN(c.cached)+'\uFF09');
+ row('\u51FA\u529B',fmtN(c.out)+' tok'+(c.tps?' \u00B7 '+c.tps.toFixed(1)+' tok/s':''));
+ if(c.status!==200)row('HTTP',String(c.status));
+ tip.appendChild(dl);
+ var info=c.aborted?'\u5B8C\u4E86\u3057\u306A\u304B\u3063\u305F\u30EA\u30AF\u30A8\u30B9\u30C8\uFF08\u30A8\u30F3\u30B8\u30F3\u505C\u6B62\u3084\u4E2D\u65AD\u3067\u6253\u3061\u5207\u3089\u308C\u3001usage \u304C\u8A18\u9332\u3055\u308C\u3066\u3044\u306A\u3044\uFF09':c.kind==='aux'?'\u30A8\u30FC\u30B8\u30A7\u30F3\u30C8\u304C\u5225\u306B\u6295\u3052\u305F\u30EA\u30AF\u30A8\u30B9\u30C8\uFF08\u753B\u50CF\u5224\u5B9A\u306A\u3069\uFF09':(c.tools.join(' + ')+(c.intent?' \u00B7 '+c.intent:''));
+ tip.appendChild(mk('div','i',info));
+ var tw=268,left=mid+14;if(left+tw>G.W)left=mid-tw-14;if(left<0)left=0;
+ tip.style.left=left+'px';
+ // \u9577\u3044\u8AAC\u660E\u3067\u4E0B\u7AEF\uFF08\u30B9\u30AF\u30ED\u30FC\u30EB\u9818\u57DF\uFF09\u306B\u5207\u3089\u308C\u306A\u3044\u3088\u3046\u3001\u306F\u307F\u51FA\u3059\u5206\u3060\u3051\u4E0A\u3078\u305A\u3089\u3059\u3002
+ tip.style.top=Math.max(4,Math.min(G.laneY+G.laneH+22,G.H-tip.offsetHeight-4))+'px';
+}
+function hide(){cur=-1;tip.hidden=true;var ov=$('#ov');if(ov)while(ov.firstChild)ov.removeChild(ov.firstChild)}
+svg.addEventListener('pointermove',function(ev){
+ var r=svg.getBoundingClientRect(),px=ev.clientX-r.left,py=ev.clientY-r.top;
+ if(px<G.M.l-6||px>G.W-G.M.r+6){hide();return}
+ var t=(px-G.M.l)/(G.W-G.M.l-G.M.r)*T;
+ var k=nearest(Math.min(Math.max(t,0),T),py);if(k>=0)show(k);
+});
+svg.addEventListener('pointerleave',function(){if(document.activeElement!==svg)hide()});
+svg.addEventListener('blur',hide);
+svg.addEventListener('keydown',function(ev){
+ if(ev.key==='ArrowRight'||ev.key==='ArrowLeft'){
+  ev.preventDefault();var k=cur<0?0:cur+(ev.key==='ArrowRight'?1:-1);
+  k=Math.max(0,Math.min(CALLS.length-1,k));show(k);
+ }else if(ev.key==='Escape'){hide()}
+});
+render();
+var rt;
+if(window.ResizeObserver){new ResizeObserver(function(){clearTimeout(rt);rt=setTimeout(render,80)}).observe(wrap)}
+else{window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(render,80)})}
+}
+
+var btn=$('#launch');
+if(btn)btn.addEventListener('click',function(){
+ var v=$('#viewer'),f=document.createElement('iframe');
+ f.src=btn.getAttribute('data-src');f.title='\u6210\u679C\u7269\uFF08\u30E9\u30A4\u30D6\u7248\uFF09';f.setAttribute('allow','fullscreen');
+ v.appendChild(f);v.appendChild(mk('div','hint','\u30AF\u30EA\u30C3\u30AF\u3067\u64CD\u4F5C \u00B7 \u30DE\u30A6\u30B9\u3092\u5916\u3059\u3068\u89E3\u9664'));
+ var p=$('#poster');if(p&&p.parentNode)p.parentNode.removeChild(p);
+ function on(){v.classList.add('live')}
+ function off(){v.classList.remove('live')}
+ v.addEventListener('click',on);v.addEventListener('mouseleave',off);
+ document.addEventListener('pointerdown',function(ev){if(!v.contains(ev.target))off()});
+});
+})();
+</script>
+</body></html>

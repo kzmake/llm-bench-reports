@@ -19,9 +19,11 @@ type Run = {
   ok: boolean;
   status: string;
   model: string;
+  engine?: string;
   lede: string;
   kpis: Record<string, string>;
   T: number;
+  noTimeline: boolean;
   calls: Call[];
   phases: string[];
   shots: Shot[];
@@ -55,6 +57,21 @@ const compact = (n: number) =>
 const hm = (sec: number) => `${Math.floor(sec / 3600)}時間${pad(Math.floor((sec % 3600) / 60))}分`;
 const WEEKDAY = ["日", "月", "火", "水", "木", "金", "土"];
 
+// ---------- 手で管理する対応表 ----------
+
+// 同じモデルが別の表記で報告される場合に、1 つのモデルとして数える(色とバッジを揃える)。
+// basalt は表示名で報告し、strata は小文字のスラッグで報告する。
+const MODEL_ALIAS: Record<string, string> = {
+  "Qwen3.8-Flash-Next UD-Q4_K_XL": "qwen3.8-flash-next-unsloth-ud-q4_k_xl",
+};
+
+// 推論エンジン(上流サーバー)。レポートの中には書かれていないので、ここに実行ごとに書く。
+// llm-bench の runs/<日付>/<run>/input/upstream-health.json の "service" が根拠。
+// 書いた実行だけ、カードと表とツールチップにエンジン名のタグが付く。
+const ENGINES: Record<string, string> = {
+  "2026-10-21/000557-220000-baseline-14759f1a": "basalt",
+};
+
 // ---------- レポートの読み取り ----------
 
 function readRun(date: string, id: string): Run | null {
@@ -69,13 +86,13 @@ function readRun(date: string, id: string): Run | null {
     return null;
   }
   const data = JSON.parse(dataText);
-  const T = Number(data.T);
-  const calls: Call[] = (data.calls as any[]).map((c) => ({
+  let T = Number(data.T);
+  const calls: Call[] = ((data.calls ?? []) as any[]).map((c) => ({
     t0: Number(c.t0),
     dur: Number(c.dur),
     out: Number(c.out) || 0,
   }));
-  const phases: string[] = (data.phases as any[]).map((p) => String(p.n));
+  const phases: string[] = ((data.phases ?? []) as any[]).map((p) => String(p.n));
 
   const header = html.match(/<header>([\s\S]*?)<\/header>/)?.[1] ?? "";
   const statusM = header.match(/<span class="status([^"]*)"[^>]*>([\s\S]*?)<\/span>/);
@@ -83,13 +100,20 @@ function readRun(date: string, id: string): Run | null {
   for (const m of html.matchAll(/class="l">([\s\S]*?)<\/div>\s*<div class="v[^"]*">([\s\S]*?)<\/div>/g)) {
     kpis[text(m[1])] = text(m[2]);
   }
+  // API 呼び出しの記録がないレポートは T が 0 で、スクリーンショットの時刻も 0:00 になる。
+  // 帯の長さだけ所要時間(実時間)から決め、位置が分からない丸印は出さない。
+  const noTimeline = !(T > 0);
+  if (noTimeline) {
+    const wall = parseClock(kpis["所要時間"] ?? "");
+    T = Number.isFinite(wall) ? wall : 0;
+  }
 
   const shots: Shot[] = [];
   for (const m of html.matchAll(
     /<figure>\s*<img[^>]*src="(shots\/[^"]+)"[^>]*>\s*<figcaption>\s*#(\d+)\s*·\s*([\d:]+)\s*·\s*([^<]*?)\s*<\/figcaption>/g,
   )) {
     if (!existsSync(join(dir, m[1]))) continue;
-    shots.push({ src: `${date}/${id}/${m[1]}`, n: Number(m[2]), t: Math.min(parseClock(m[3]), T), cap: `#${m[2]} · ${m[3]}` });
+    shots.push({ src: `${date}/${id}/${m[1]}`, n: Number(m[2]), t: noTimeline ? 0 : Math.min(parseClock(m[3]), T), cap: noTimeline ? `#${m[2]}` : `#${m[2]} · ${m[3]}` });
   }
 
   // スクショ群が属するセクション(マーカーのリンク先)。見つからなければページ先頭。
@@ -113,9 +137,11 @@ function readRun(date: string, id: string): Run | null {
     ok: statusM ? !/\bbad\b/.test(statusM[1]) : true,
     status: statusM ? text(statusM[2]) : "",
     model: text(header.match(/<dt>モデル<\/dt>\s*<dd[^>]*>([\s\S]*?)<\/dd>/)?.[1] ?? ""),
+    engine: ENGINES[`${date}/${id}`],
     lede: text(header.match(/class="lede"[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? ""),
     kpis,
     T,
+    noTimeline,
     calls,
     phases,
     shots,
@@ -140,10 +166,11 @@ if (noModel.length) throw new Error(`モデル名が読めないレポート: ${
 // 色は順位ではなくモデルに付く。最初に実行した順にスロットを割り当てるので、
 // あとから別のモデルが増えても既存のモデルの色は変わらない。3 つを超えた分は無彩色にする。
 const MODEL_SLOTS = 3;
-const modelOrder = [...new Set([...runs].reverse().map((r) => r.model))];
-const slot = (m: string) => (modelOrder.indexOf(m) < MODEL_SLOTS ? `m${modelOrder.indexOf(m) + 1}` : "m0");
-const modelCount = (m: string) => runs.filter((r) => r.model === m).length;
-// <title> にはモデル名が入る。カードの見出しにはバッジが別にあるので外す。
+const canon = (m: string) => MODEL_ALIAS[m] ?? m;
+const modelOrder = [...new Set([...runs].reverse().map((r) => canon(r.model)))];
+const slot = (m: string) => (modelOrder.indexOf(canon(m)) < MODEL_SLOTS ? `m${modelOrder.indexOf(canon(m)) + 1}` : "m0");
+const modelCount = (m: string) => runs.filter((r) => canon(r.model) === canon(m)).length;
+// <title> にはレポートに書かれたままのモデル名が入る。カードの見出しにはバッジが別にあるので外す。
 const shortTitle = (r: Run) => r.title.replace(r.model, "").replace(/\s+/g, " ").trim() || r.title;
 
 // ---------- 共通の時間軸 ----------
@@ -158,6 +185,9 @@ const kv = (r: Run, k: string) => r.kpis[k] ?? "";
 const dur = (r: Run) => kv(r, "所要時間") || clock(r.T);
 const runName = (r: Run) => `${r.date.slice(5).replace("-", "/")} ${r.time}`;
 
+// エンジン名のタグ。色はモデルのもので、エンジンは無彩色の文字だけで示す。
+const engineTag = (r: Run) => (r.engine ? `<span class="etag" title="推論エンジン"><span>engine</span>${esc(r.engine)}</span>` : "");
+
 // ---------- 比較タイムライン ----------
 
 function rowHtml(r: Run) {
@@ -170,19 +200,21 @@ function rowHtml(r: Run) {
     .join("");
   const tip = {
     title: `${r.date} ${r.time} · ${r.label} ${r.hash}`,
-    model: r.model,
+    model: canon(r.model),
     slot: slot(r.model),
     rows: [
+      ["エンジン", r.engine ?? ""],
       ["所要時間", dur(r)],
-      ["API 呼び出し", kv(r, "API 呼び出し")],
+      ["タイムライン", r.noTimeline ? "API 呼び出しの記録なし" : ""],
+      ["API 呼び出し", r.noTimeline ? "" : kv(r, "API 呼び出し")],
       ["出力トークン", kv(r, "出力トークン")],
       ["最大コンテキスト", kv(r, "最大コンテキスト")],
       ["キャッシュ命中", kv(r, "キャッシュ命中")],
       ["推論が占める時間", kv(r, "推論が占める時間")],
       ["スクリーンショット", `${r.shots.length} 枚`],
-    ].filter(([, v]) => v),
+    ].filter(([, v]) => v && v !== "?"),
   };
-  const marks = r.shots
+  const marks = (r.noTimeline ? [] : r.shots)
     .map((s) => {
       const d = { src: s.src, cap: `${runName(r)} · ${s.cap}` };
       return `<a class="mk" href="${esc(r.href + r.anchor)}" style="left:${pct(s.t)}" data-shot="${esc(JSON.stringify(d))}" aria-label="スクリーンショット ${esc(s.cap)} を含むレポートを開く"></a>`;
@@ -192,7 +224,7 @@ function rowHtml(r: Run) {
   <a class="rl" href="${esc(r.href)}"><i class="dot"></i>${esc(runName(r))}</a>
   <div class="plot">
     <a class="track" href="${esc(r.href)}" tabindex="-1" aria-hidden="true" style="width:${pct(r.T)}"><svg viewBox="0 0 1000 14" preserveAspectRatio="none">${rects}</svg></a>
-    <span class="dur" style="left:calc(${pct(r.T)} + 8px)">${esc(dur(r))}</span>${marks}
+    <span class="dur" style="left:calc(${pct(r.T)} + 8px)">${esc(dur(r))}${r.noTimeline ? ' <span class="dim">· 呼び出し記録なし</span>' : ""}</span>${marks}
   </div>
 </div>`;
 }
@@ -220,7 +252,7 @@ ${runs.map(rowHtml).join("\n")}
 <tbody>${runs
   .map(
     (r) =>
-      `<tr><td><a href="${esc(r.href)}">${esc(runName(r))}</a> <span class="mono dim">${esc(r.hash)}</span></td><td class="mono"><span class="lbl ${slot(r.model)}"><i class="dot"></i>${esc(r.model)}</span></td><td class="r num">${esc(dur(r))}</td><td class="r num">${esc(kv(r, "API 呼び出し"))}</td><td class="r num">${esc(kv(r, "出力トークン"))}</td><td class="r num">${esc(kv(r, "最大コンテキスト"))}</td><td class="r num">${esc(kv(r, "キャッシュ命中"))}</td><td class="r num">${esc(kv(r, "推論が占める時間"))}</td><td class="r num">${r.shots.length}</td></tr>`,
+      `<tr><td><a href="${esc(r.href)}">${esc(runName(r))}</a> <span class="mono dim">${esc(r.hash)}</span></td><td class="mono"><span class="lbl ${slot(r.model)}"><i class="dot"></i>${esc(canon(r.model))}</span>${engineTag(r)}</td><td class="r num">${esc(dur(r))}</td><td class="r num">${r.noTimeline ? "?" : esc(kv(r, "API 呼び出し"))}</td><td class="r num">${esc(kv(r, "出力トークン"))}</td><td class="r num">${esc(kv(r, "最大コンテキスト"))}</td><td class="r num">${esc(kv(r, "キャッシュ命中"))}</td><td class="r num">${esc(kv(r, "推論が占める時間"))}</td><td class="r num">${r.shots.length}</td></tr>`,
   )
   .join("")}</tbody></table></div></details>
 </div>`;
@@ -234,7 +266,7 @@ const dates = [...new Set(runs.map((r) => r.date))];
 const kpiHtml = `<div class="kpis">
 <div class="kpi"><div class="l">実行</div><div class="v">${runs.length}</div><div class="d">${esc(dates[dates.length - 1])} 〜 ${esc(dates[0])}</div></div>
 <div class="kpi"><div class="l">合計の所要時間</div><div class="v">${hm(totalT)}</div><div class="d">最短 ${esc(clock(Math.min(...runs.map((r) => r.T))))} / 最長 ${esc(clock(maxT))}</div></div>
-<div class="kpi"><div class="l">API 呼び出し</div><div class="v">${totalCalls.toLocaleString("en-US")}</div><div class="d">1 実行あたり平均 ${Math.round(totalCalls / runs.length)}</div></div>
+<div class="kpi"><div class="l">API 呼び出し</div><div class="v">${totalCalls.toLocaleString("en-US")}</div><div class="d">1 実行あたり平均 ${Math.round(totalCalls / runs.filter((r) => !r.noTimeline).length)}</div></div>
 <div class="kpi"><div class="l">出力トークン</div><div class="v">${compact(totalOut)}</div><div class="d">全実行の合計</div></div>
 </div>`;
 
@@ -249,10 +281,11 @@ function sample<T>(xs: T[], max: number): T[] {
 function cardHtml(r: Run) {
   const last = r.shots[r.shots.length - 1];
   const name = shortTitle(r);
-  const chip = `<span class="mchip ${slot(r.model)}"><i class="dot"></i><span>${esc(r.model)}</span></span>`;
+  const chip = `<div class="mtags"><span class="mchip ${slot(r.model)}"><i class="dot"></i><span>${esc(canon(r.model))}</span></span>${engineTag(r)}</div>`;
+  const who = r.engine ? `${canon(r.model)}、${r.engine}` : canon(r.model);
   const cover = last
-    ? `<a class="cover" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(r.model)})のレポートを開く"><img src="${esc(last.src)}" alt="${esc(name)} のスクリーンショット" loading="lazy" decoding="async"><span class="badge">${esc(last.cap)}</span>${chip}</a>`
-    : `<a class="cover noshot" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(r.model)})のレポートを開く"><span>スクリーンショットなし</span>${chip}</a>`;
+    ? `<a class="cover" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(who)})のレポートを開く"><img src="${esc(last.src)}" alt="${esc(name)} のスクリーンショット" loading="lazy" decoding="async"><span class="badge">${esc(last.cap)}</span>${chip}</a>`
+    : `<a class="cover noshot" href="${esc(r.href)}" aria-label="${esc(name)}(${esc(who)})のレポートを開く"><span>スクリーンショットなし</span>${chip}</a>`;
   const thumbs =
     r.shots.length > 1
       ? `<div class="strip" role="group" aria-label="スクリーンショットを時系列で切り替え">${sample(r.shots, 6)
@@ -262,14 +295,14 @@ function cardHtml(r: Run) {
           )
           .join("")}</div>`
       : "";
-  const stat = (k: string, label = k) => (kv(r, k) ? `<div><dt>${esc(label)}</dt><dd>${esc(kv(r, k))}</dd></div>` : "");
+  const stat = (k: string, label = k) => (kv(r, k) && kv(r, k) !== "?" ? `<div><dt>${esc(label)}</dt><dd>${esc(kv(r, k))}</dd></div>` : "");
   const status = r.status ? `<span class="status${r.ok ? "" : " bad"}"><i></i>${esc(r.status)}</span>` : "";
   return `<article class="run">
 ${cover}${thumbs}
 <div class="body">
   <div class="eyebrow">${esc(r.time)} · ${esc(r.label)} · ${esc(r.hash)}</div>
   <h4><a href="${esc(r.href)}">${esc(name)}</a></h4>
-  <dl class="stats">${stat("所要時間")}${stat("API 呼び出し", "呼び出し")}${stat("出力トークン", "出力 tok")}${stat("最大コンテキスト", "最大 ctx")}${stat("キャッシュ命中", "キャッシュ")}</dl>
+  <dl class="stats">${stat("所要時間")}${r.noTimeline ? "" : stat("API 呼び出し", "呼び出し")}${stat("出力トークン", "出力 tok")}${stat("最大コンテキスト", "最大 ctx")}${stat("キャッシュ命中", "キャッシュ")}</dl>
   <p class="lede">${esc(r.lede)}</p>
   <div class="links"><a href="${esc(r.href)}">レポート →</a>${r.work ? `<a href="${esc(r.work)}">成果物 ↗</a>` : ""}${status}</div>
 </div>
@@ -391,7 +424,12 @@ td:last-child,th:last-child{padding-right:0}
 .cover{position:relative;display:block;aspect-ratio:16/10;background:var(--viewer);overflow:hidden}
 .cover img{display:block;width:100%;height:100%;object-fit:cover}
 .badge{position:absolute;left:8px;bottom:8px;font:500 11px/1 var(--mono);padding:5px 8px;border-radius:999px;background:rgba(16,19,34,.78);color:#f4ead8;border:1px solid rgba(244,234,216,.25)}
-.mchip{position:absolute;left:8px;top:8px;z-index:1;display:inline-flex;align-items:center;gap:6px;max-width:calc(100% - 16px);font:500 11px/1.3 var(--mono);padding:5px 9px 5px 8px;border-radius:999px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.2);overflow-wrap:anywhere}
+.mtags{position:absolute;left:8px;right:8px;top:8px;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+.mchip{display:inline-flex;align-items:center;gap:6px;max-width:100%;font:500 11px/1.3 var(--mono);padding:5px 9px 5px 8px;border-radius:999px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 1px 4px rgba(0,0,0,.2);overflow-wrap:anywhere}
+.etag{display:inline-flex;align-items:baseline;gap:6px;max-width:100%;font:500 11px/1.3 var(--mono);padding:3px 9px;border-radius:999px;background:var(--surface);color:var(--ink);border:1px solid var(--line);white-space:nowrap}
+.etag span{font-weight:400;color:var(--ink-3)}
+.cover .etag{box-shadow:0 1px 4px rgba(0,0,0,.2)}
+td .etag{margin-left:10px}
 .noshot{display:grid;place-items:center;background:var(--wash);color:var(--ink-3);font-size:12.5px;text-decoration:none}
 .strip{display:flex;gap:6px;padding:8px 10px 0}
 .th{flex:0 0 calc((100% - 30px)/6);min-width:0;aspect-ratio:16/10;padding:0;border:0;border-radius:4px;overflow:hidden;background:var(--viewer);cursor:pointer;opacity:.6;transition:opacity .12s}
@@ -497,7 +535,7 @@ const page = `<!doctype html>
 
 <section id="reports">
   <h2>レポート</h2>
-  <p class="sec-lede">新しい順です。カード左上のバッジが、実行したモデルです。サムネイルにポインタを重ねる(タップする)と、実行中のスクリーンショットを時系列で見られます。</p>
+  <p class="sec-lede">新しい順です。カード左上のバッジが、実行したモデルです。エンジンを明示している実行には、その下にエンジン名のタグが付きます。サムネイルにポインタを重ねる(タップする)と、実行中のスクリーンショットを時系列で見られます。</p>
   <div class="days">
 ${daysHtml}
   </div>
@@ -515,6 +553,6 @@ writeFileSync(join(ROOT, "index.html"), page);
 console.log(`index.html を生成: ${runs.length} 件 / 軸 0〜${axisMax / 60} 分 (目盛り ${step / 60} 分)`);
 for (const r of runs) {
   console.log(
-    `  ${r.date} ${r.time} ${r.hash}  ${slot(r.model)}  ${r.model}  T=${clock(r.T).padStart(7)}  calls=${String(r.calls.length).padStart(3)}  shots=${String(r.shots.length).padStart(2)}  work=${r.work ? "✓" : "-"}  ${r.ok ? "ok" : "BAD"}`,
+    `  ${r.date} ${r.time} ${r.hash}  ${slot(r.model)}  ${canon(r.model)}${r.engine ? ` [${r.engine}]` : ""}  T=${clock(r.T).padStart(7)}  calls=${String(r.calls.length).padStart(3)}  shots=${String(r.shots.length).padStart(2)}  work=${r.work ? "✓" : "-"}  ${r.ok ? "ok" : "BAD"}`,
   );
 }
