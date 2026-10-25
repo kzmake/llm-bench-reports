@@ -70,6 +70,8 @@ const MODEL_ALIAS: Record<string, string> = {
 // 書いた実行だけ、カードと表とツールチップにエンジン名のタグが付く。
 const ENGINES: Record<string, string> = {
   "2026-10-21/000557-220000-baseline-14759f1a": "basalt",
+  "2026-10-25/174239-703000-strata-ds4-1.75bpw-025fb094": "strata",
+  "2026-10-25/194315-949000-strata-q3.8-fn-q4-6892956e": "strata",
 };
 
 // ---------- レポートの読み取り ----------
